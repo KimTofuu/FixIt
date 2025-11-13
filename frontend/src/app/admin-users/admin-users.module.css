@@ -431,6 +431,29 @@
   
 }
 
+.suspendedRow {
+  background-color: #fff3cd;
+  opacity: 0.8;
+}
+
+.btnWarning {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.btnWarning:hover {
+  background-color: #e0a800;
+}
+
+.suspendReasonInput {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  resize: vertical;
+}
+
 /* ...existing styles... */
 
 
@@ -440,7 +463,7 @@
   .modalCard { width: 90%; }
   .hamburger { display: flex; }
   .navListUserSide { display: none; }
-  .navListUserSide.open { display: flex; flex-direction: column; gap: 8px; }
+  .navListUserSide.open { display: flex; flex-direction: column}
 }
 
 @media (max-width: 768px) {

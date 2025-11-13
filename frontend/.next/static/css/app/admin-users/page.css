@@ -1,0 +1,503 @@
+/*!**************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./src/app/admin-users/admin-users.module.css ***!
+  \**************************************************************************************************************************************************************************************************************************************************************************************/
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Poppins:wght@400;600;700&display=swap');
+
+.admin-users_adminUsersRoot__Kn8h5 {
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --muted: #6b7280;
+  --ink: #0b1220;
+  --ar-accent: #2563eb;
+  --accent: #2563eb;
+  --success: #10b981;
+  --danger: #ef4444;
+  --glass: rgba(15,23,42,0.04);
+  --radius: 12px;
+  --gap: 16px;
+  --shadow-sm: 0 6px 20px rgba(2,6,23,0.06);
+  --header-h: 72px;
+  --font-sans: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  --font-display: 'Poppins', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+
+
+.admin-users_header__jevnQ {
+  position: fixed;
+  top: 0;
+  z-index: 60;
+  background: linear-gradient(180deg, rgba(37,99,235,0.02), transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgba(15,23,42,0.02);
+  padding: 14px 20px;
+  flex: 0 0 auto;
+  height: 100%;
+}
+
+.admin-users_adminNav__tH6wF {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:space-between;
+  gap: var(--ar-gap);
+  max-width: 1200px;
+  margin: 1rem auto;
+  width: 100%;
+}
+
+.admin-users_navLeft__aKBUU { display:flex; align-items:center; gap:20px; }
+.admin-users_logo__9e2me { width:160px; height:40px; object-fit:contain; }
+
+
+.admin-users_hamburger__Ddxvj {
+  display: none;
+  flex-direction: column;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+.admin-users_bar__QpoDT {
+  width: 25px;
+  height: 3px;
+  background-color: #475569;
+  margin: 3px 0;
+  transition: 0.3s;
+  border-radius: 3px;
+}
+.admin-users_hamburger__Ddxvj:hover { background: rgba(2,6,23,0.03); }
+.admin-users_hamburger__Ddxvj:focus { outline: 3px solid rgba(37,99,235,0.14); outline-offset: 3px; }
+.admin-users_hamburger__Ddxvj.admin-users_open___usk8 .admin-users_bar__QpoDT:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.admin-users_hamburger__Ddxvj.admin-users_open___usk8 .admin-users_bar__QpoDT:nth-child(2) { opacity: 0; transform: scaleX(0); }
+.admin-users_hamburger__Ddxvj.admin-users_open___usk8 .admin-users_bar__QpoDT:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+
+.admin-users_navListUserSide__P3BSz,
+.admin-users_navList__vgWtD {
+  display:flex;
+  flex-direction: column;
+  align-items:center;
+  gap:2rem;
+  list-style:none;
+  margin:0;
+  padding:0;
+  margin-top: 5rem;
+}
+.admin-users_navLink__Kbt83 { color: var(--ar-ink); text-decoration:none; padding:8px 12px; border-radius:10px; font-weight:600; }
+.admin-users_activeNavItem__RgQo6 .admin-users_navLink__Kbt83 { background: rgba(37,99,235,0.08); color:var(--ar-accent); }
+.admin-users_adminProfileLink__5uHR4 { display:inline-flex; align-items:center; }
+.admin-users_adminProfilePic__qlanR { width:36px; height:36px; border-radius:999px; object-fit:cover; border:1px solid rgba(2,6,23,0.06); }
+
+.admin-users_usersLink__nBnxT {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: #f0f0f0;
+}
+.admin-users_adminProfileLink__5uHR4 {
+  display: inline-flex;
+  align-items: center;
+}
+.admin-users_adminProfilePic__qlanR {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(2,6,23,0.06);
+}
+
+
+.admin-users_adminUsersMain__U6fHZ {
+  padding: 20px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-left: 12rem;
+}
+
+
+.admin-users_headerRow__0PNdQ {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-users_title__Wf2vs {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+
+.admin-users_controls__2itZU {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-users_searchWrap__4iCEb {
+  position: relative;
+}
+.admin-users_searchInput__PGPbL {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #e6e9ef;
+  min-width: 220px;
+  font-size: 0.95rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+.admin-users_btn__sN3q9 {
+  background: var(--surface);
+  border: 1px solid #e6e9ef;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.admin-users_btn__sN3q9:hover { box-shadow: var(--shadow-sm); }
+.admin-users_linkBtn__7kh3I {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 6px 8px;
+  font-weight: 600;
+}
+.admin-users_btnSuccess__ZyWJV {
+  background: #10b981 !important;
+  color: white !important;
+}
+
+.admin-users_btnSuccess__ZyWJV:hover {
+  background: #059669 !important;
+}
+
+.admin-users_label__vq71n {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.admin-users_value__50Kam {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+
+.admin-users_error__P9MIk {
+  color: var(--danger);
+  background: rgba(239,68,68,0.06);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(239,68,68,0.08);
+}
+
+
+.admin-users_tableSection__o3R6Q {
+  background: transparent;
+  border-radius: 10px;
+  padding: 0;
+}
+.admin-users_filterRow__WEYZy {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.admin-users_filterBtn__HAAGg {
+  background: var(--surface);
+  border: 1px solid #e9eef6;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.admin-users_filterBtn__HAAGg:hover { transform: translateY(-2px); }
+.admin-users_active__UpbkT {
+  background: rgba(37,99,235,0.08);
+  color: var(--accent);
+  box-shadow: 0 6px 18px rgba(37,99,235,0.06);
+}
+
+
+.admin-users_tableWrap__LtyNZ {
+  overflow-x: auto;
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.admin-users_usersTable__yJd0s {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+.admin-users_usersTable__yJd0s thead th {
+  text-align: left;
+  padding: 12px 10px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  border-bottom: 1px solid #eef2f8;
+}
+.admin-users_usersTable__yJd0s tbody td {
+  padding: 12px 10px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f3f6fb;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.admin-users_emptyCell__vmI8k {
+  padding: 28px;
+  text-align: center;
+  color: var(--muted);
+}
+
+
+.admin-users_archivedRow__FtKVF {
+  opacity: 0.6;
+}
+
+
+.admin-users_nameCell__upUZ4 {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-users_nameText__m_hvS { font-weight: 700; }
+.admin-users_subText__UtePx { font-size: 12px; color: var(--muted); }
+
+
+.admin-users_credBadge__QarhS {
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.admin-users_cred_trusted__Myay2 {
+  background: #ecfdf5;
+  color: var(--success);
+  border: 1px solid rgba(16,185,129,0.08);
+}
+.admin-users_cred_newcomer__30wnc {
+  background: #fff7ed;
+  color: #b45309;
+  border: 1px solid rgba(180,83,9,0.06);
+}
+
+
+.admin-users_activeStatus__wkclk {
+  color: #116632;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.admin-users_inactiveStatus__MfHqQ {
+  color: #aa0000;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+
+.admin-users_detailsCell__GNwwa {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.admin-users_statusPill__UwLtI {
+  background: #f7f7f7;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  color: #444;
+}
+
+
+.admin-users_confirmCard__MTzCA {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 80;
+  background: var(--surface);
+  padding: 14px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  width: 320px;
+}
+.admin-users_confirmCard__MTzCA .admin-users_title__Wf2vs { font-weight: 700; }
+.admin-users_confirmCard__MTzCA .admin-users_desc__KR6Bt { font-size: 0.92rem; color: var(--muted); margin-top: 8px; }
+.admin-users_confirmCard__MTzCA .admin-users_actions__01aDh { display:flex; gap:8px; justify-content:flex-end; margin-top: 12px; }
+
+
+.admin-users_modalBackdrop__SN_KP {
+  position: fixed;
+  inset: 0;
+  background: rgba(2,6,23,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.admin-users_modalCard__wu2Vx {
+  width: 520px;
+  max-width: 94%;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 18px 50px rgba(2,6,23,0.12);
+}
+.admin-users_modalHeader__Iaezu {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.admin-users_modalGrid__Y6Lv0 {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 16px;
+  padding: 24px;
+  font-size: 15px;
+}
+.admin-users_labelCol__qEkjl { font-weight: 700; color: var(--muted); }
+
+
+.admin-users_modalActions__qY_dT {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #e2e8f0;
+  justify-content: flex-end;
+}
+
+
+.admin-users_cellId__Ry74J {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.admin-users_idWrapper__4zAlR {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-users_idText__2vFUM {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.admin-users_copyBtn__uaYyp {
+  padding: 6px 10px;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 6px 8px;
+  font-weight: 600;
+}
+
+.admin-users_copyBtn__uaYyp:hover {
+  background: #ffffff;
+  color: #667eea;
+  border-color: #667eea;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+}
+
+.admin-users_copyBtn__uaYyp:active {
+  transform: scale(0.95);
+  background: #f3f4f6;
+}
+
+.admin-users_copyBtn__uaYyp i {
+  font-size: 14px;
+  line-height: 1;
+  
+}
+
+.admin-users_suspendedRow__KEaFA {
+  background-color: #fff3cd;
+  opacity: 0.8;
+}
+
+.admin-users_btnWarning__92naB {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.admin-users_btnWarning__92naB:hover {
+  background-color: #e0a800;
+}
+
+.admin-users_suspendReasonInput__9if7n {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+/* ...existing styles... */
+
+
+@media (max-width: 900px) {
+  .admin-users_searchInput__PGPbL { min-width: 160px; }
+  .admin-users_usersTable__yJd0s { min-width: 700px; }
+  .admin-users_modalCard__wu2Vx { width: 90%; }
+  .admin-users_hamburger__Ddxvj { display: flex; }
+  .admin-users_navListUserSide__P3BSz { display: none; }
+  .admin-users_navListUserSide__P3BSz.admin-users_open___usk8 { display: flex; flex-direction: column}
+}
+
+@media (max-width: 768px) {
+  .admin-users_hamburger__Ddxvj {
+    display: flex;
+  }
+
+  .admin-users_navListUserSide__P3BSz {
+    position: fixed;
+    top: 64px;
+    right: -100%;
+    width: 250px;
+    height: calc(100vh - 64px);
+    flex-direction: column;
+    background: white;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+    gap: 16px;
+    align-items: flex-start;
+    transition: right 0.3s ease;
+  }
+
+  .admin-users_navListUserSide__P3BSz.admin-users_open___usk8 {
+    right: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-users_headerRow__0PNdQ { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .admin-users_searchInput__PGPbL { min-width: 140px; }
+  .admin-users_overview__ZG4zk { flex-direction: column; gap: 10px; align-items: stretch; }
+  .admin-users_usersTable__yJd0s { min-width: 560px; font-size: 0.9rem; }
+  .admin-users_modalGrid__Y6Lv0 { grid-template-columns: 1fr; }
+}

@@ -12,7 +12,9 @@ type User = {
   name: string;
   email?: string;
   address?: string;
-  archived?: boolean;
+  suspended?: boolean;
+  suspendedAt?: string;
+  suspensionReason?: string;
   lastLogin?: string;
   reputation?: {
     points: number;
@@ -24,7 +26,7 @@ type User = {
 type UserStats = {
   totalUsers: number;
   activeUsers: number;
-  archivedUsers: number;
+  suspendedUsers: number;
   totalReports: number;
 };
 
@@ -33,12 +35,14 @@ export default function AdminUserListPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [confirmOpenFor, setConfirmOpenFor] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "archived">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "suspended">("all");
+  const [suspendReason, setSuspendReason] = useState("");
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [userToSuspend, setUserToSuspend] = useState<string | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -124,9 +128,9 @@ export default function AdminUserListPage() {
   const filteredAndSearchedUsers = users
     .filter((u) => {
       if (statusFilter === "all") return true;
-      if (statusFilter === "archived") return !!u.archived;
+      if (statusFilter === "suspended") return !!u.suspended;
       const active = isActiveFromLastLogin(u.lastLogin);
-      return statusFilter === "active" ? active && !u.archived : !active && !u.archived;
+      return statusFilter === "active" ? active && !u.suspended : !active && !u.suspended;
     })
     .filter((u) => {
       const q = searchQuery.trim().toLowerCase();
@@ -139,15 +143,7 @@ export default function AdminUserListPage() {
       );
     });
 
-  const handleOpenConfirm = (userId: string) => {
-    setConfirmOpenFor(userId);
-  };
-
-  const closeConfirm = () => {
-    setConfirmOpenFor(null);
-  };
-
-  const handleArchive = async (userId: string) => {
+  const handleSuspend = async (userId: string, reason: string) => {
     setActionLoading(true);
     setError(null);
     
@@ -156,48 +152,49 @@ export default function AdminUserListPage() {
       const user = users.find((u) => u._id === userId);
       
       if (!user) throw new Error("User not found");
-      if (user.archived) throw new Error("User is already archived");
+      if (user.suspended) throw new Error("User is already suspended");
 
-      const res = await fetch(`${API}/admin/users/${userId}/archive`, {
+      const res = await fetch(`${API}/admin/users/${userId}/suspend`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ reason })
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Failed to archive user");
+        throw new Error(data.message || "Failed to suspend user");
       }
 
-      toast.success("User archived successfully");
+      toast.success("User suspended successfully");
       
-      // Update local state
-      setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, archived: true } : u)));
-      closeConfirm();
+      setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, suspended: true, suspendedAt: new Date().toISOString(), suspensionReason: reason } : u)));
+      setShowSuspendModal(false);
+      setUserToSuspend(null);
+      setSuspendReason("");
       setViewingUser(null);
       
-      // Refresh stats
       fetchData();
     } catch (err: any) {
-      console.error("❌ Archive error:", err);
-      setError(err?.message || "Could not archive user");
-      toast.error(err?.message || "Failed to archive user");
+      console.error("❌ Suspend error:", err);
+      setError(err?.message || "Could not suspend user");
+      toast.error(err?.message || "Failed to suspend user");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleUnarchive = async (userId: string) => {
+  const handleUnsuspend = async (userId: string) => {
     setActionLoading(true);
     setError(null);
     
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API}/admin/users/${userId}/unarchive`, {
+      const res = await fetch(`${API}/admin/users/${userId}/unsuspend`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -208,46 +205,24 @@ export default function AdminUserListPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Failed to unarchive user");
+        throw new Error(data.message || "Failed to unsuspend user");
       }
 
-      toast.success("User unarchived successfully");
+      toast.success("User unsuspended successfully");
       
-      // Update local state
-      setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, archived: false } : u)));
+      setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, suspended: false, suspendedAt: undefined, suspensionReason: undefined } : u)));
       setViewingUser(null);
       
-      // Refresh stats
       fetchData();
     } catch (err: any) {
-      console.error("❌ Unarchive error:", err);
-      toast.error(err?.message || "Failed to unarchive user");
+      console.error("❌ Unsuspend error:", err);
+      toast.error(err?.message || "Failed to unsuspend user");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const getConfirmMeta = (u: User | null) => {
-    if (!u) return { title: "Confirm", description: "Are you sure?", confirmLabel: "Confirm" };
-    if (u.archived) {
-      return {
-        title: "Unarchive user?",
-        description: `User "${u.name}" is currently archived. Unarchiving will restore their account.`,
-        confirmLabel: "Unarchive",
-      };
-    }
-    const active = isActiveFromLastLogin(u.lastLogin);
-    return {
-      title: "Archive user?",
-      description: active
-        ? `User "${u.name}" is currently active. Archiving will hide their profile from public listings.`
-        : `User "${u.name}" is currently inactive. Archiving will hide their profile from public listings.`,
-      confirmLabel: "Archive",
-    };
-  };
-
   const handleExport = () => {
-    // Convert users to CSV
     const headers = ["ID", "Name", "Email", "Location", "Reports", "Credibility", "Status", "Last Login"];
     const rows = filteredAndSearchedUsers.map(u => [
       u.id || u._id,
@@ -256,7 +231,7 @@ export default function AdminUserListPage() {
       u.address || "",
       u.reputation?.totalReports || 0,
       computeCredibilityLabel(u),
-      u.archived ? "Archived" : isActiveFromLastLogin(u.lastLogin) ? "Active" : "Inactive",
+      u.suspended ? "Suspended" : isActiveFromLastLogin(u.lastLogin) ? "Active" : "Inactive",
       u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "Never"
     ]);
 
@@ -281,7 +256,6 @@ export default function AdminUserListPage() {
     return `${id.substring(0, 4)}...${id.substring(id.length - 4)}`;
   };
 
-  // ✅ Add copy to clipboard function
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast.success("ID copied to clipboard!");
@@ -393,13 +367,13 @@ export default function AdminUserListPage() {
                 All ({users.length})
               </button>
               <button className={`${styles.filterBtn} ${statusFilter === "active" ? styles.active : ""}`} onClick={() => setStatusFilter("active")}>
-                Active ({users.filter(u => isActiveFromLastLogin(u.lastLogin) && !u.archived).length})
+                Active ({users.filter(u => isActiveFromLastLogin(u.lastLogin) && !u.suspended).length})
               </button>
               <button className={`${styles.filterBtn} ${statusFilter === "inactive" ? styles.active : ""}`} onClick={() => setStatusFilter("inactive")}>
-                Inactive ({users.filter(u => !isActiveFromLastLogin(u.lastLogin) && !u.archived).length})
+                Inactive ({users.filter(u => !isActiveFromLastLogin(u.lastLogin) && !u.suspended).length})
               </button>
-              <button className={`${styles.filterBtn} ${statusFilter === "archived" ? styles.active : ""}`} onClick={() => setStatusFilter("archived")}>
-                Archived ({users.filter(u => u.archived).length})
+              <button className={`${styles.filterBtn} ${statusFilter === "suspended" ? styles.active : ""}`} onClick={() => setStatusFilter("suspended")}>
+                Suspended ({users.filter(u => u.suspended).length})
               </button>
             </div>
 
@@ -429,12 +403,12 @@ export default function AdminUserListPage() {
                     filteredAndSearchedUsers.map((user) => {
                       const reportsCount = user.reputation?.totalReports || 0;
                       const credibility = computeCredibilityLabel(user);
-                      const isArchived = !!user.archived;
+                      const isSuspended = !!user.suspended;
                       const active = isActiveFromLastLogin(user.lastLogin);
                       const fullId = user.id || user._id;
 
                       return (
-                        <tr key={user._id} className={isArchived ? styles.archivedRow : ""}>
+                        <tr key={user._id} className={`${isSuspended ? styles.suspendedRow : ""}`}>
                           <td className={styles.cellId}>
                             <div className={styles.idWrapper} title={fullId}>
                               <span className={styles.idText}>{truncateId(fullId)}</span>
@@ -447,7 +421,7 @@ export default function AdminUserListPage() {
                                 aria-label="Copy ID"
                                 title="Copy full ID"
                               >
-                                <i className="fa-regular fa-copy">Copy</i> {/* ✅ Changed to fa-regular */}
+                                <i className="fa-regular fa-copy"></i>
                               </button>
                             </div>
                           </td>
@@ -464,28 +438,31 @@ export default function AdminUserListPage() {
                           <td><strong>{reportsCount}</strong></td>
                           <td><span className={`${styles.credBadge} ${styles[`cred_${credibility.toLowerCase()}`]}`}>{credibility}</span></td>
                           <td>
-                            <div className={active && !isArchived ? styles.activeStatus : styles.inactiveStatus}>
-                              {isArchived ? "Archived" : active ? "Active" : "Inactive"}
+                            <div className={active && !isSuspended ? styles.activeStatus : styles.inactiveStatus}>
+                              {isSuspended ? "Suspended" : active ? "Active" : "Inactive"}
                             </div>
                           </td>
                           <td>
                             <div className={styles.detailsCell}>
                               <button onClick={() => setViewingUser(user)} className={styles.linkBtn}>View</button>
-                              {isArchived ? (
+                              {isSuspended ? (
                                 <button
-                                  onClick={() => handleUnarchive(user._id)}
+                                  onClick={() => handleUnsuspend(user._id)}
                                   className={`${styles.btn} ${styles.btnSuccess}`}
                                   disabled={actionLoading}
                                 >
-                                  Unarchive
+                                  Unsuspend
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => handleOpenConfirm(user._id)}
-                                  className={`${styles.btn} ${styles.btnDanger}`}
+                                  onClick={() => {
+                                    setUserToSuspend(user._id);
+                                    setShowSuspendModal(true);
+                                  }}
+                                  className={`${styles.btn} ${styles.btnWarning}`}
                                   disabled={actionLoading}
                                 >
-                                  Archive
+                                  Suspend
                                 </button>
                               )}
                             </div>
@@ -499,40 +476,66 @@ export default function AdminUserListPage() {
             </div>
           </section>
 
-          {/* Confirmation modal */}
-          {confirmOpenFor && (() => {
-            const u = users.find((x) => x._id === confirmOpenFor) || null;
-            const meta = getConfirmMeta(u);
-            const isUnarchive = !!u && !!u.archived;
-            
-            return (
-              <div className={styles.confirmCard} role="dialog" aria-modal="true">
-                <div className={styles.title}>{meta.title}</div>
-                <div className={styles.desc}>{meta.description}</div>
-                <div className={styles.actions}>
-                  <button onClick={closeConfirm} className={styles.btn} disabled={actionLoading}>
+          {showSuspendModal && userToSuspend && (
+            <div className={styles.modalBackdrop} role="dialog" aria-modal="true" onClick={() => {
+              setShowSuspendModal(false);
+              setUserToSuspend(null);
+              setSuspendReason("");
+            }}>
+              <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+                <div className={styles.modalHeader}>
+                  <h3>Suspend User</h3>
+                  <button onClick={() => {
+                    setShowSuspendModal(false);
+                    setUserToSuspend(null);
+                    setSuspendReason("");
+                  }} className={styles.linkBtn}>
+                    <i className="fa fa-times"></i>
+                  </button>
+                </div>
+
+                <div className={styles.modalBody}>
+                  <p>Please provide a reason for suspending this user:</p>
+                  <textarea
+                    value={suspendReason}
+                    onChange={(e) => setSuspendReason(e.target.value)}
+                    placeholder="Enter suspension reason..."
+                    className={styles.suspendReasonInput}
+                    rows={4}
+                  />
+                </div>
+
+                <div className={styles.modalActions}>
+                  <button
+                    onClick={() => {
+                      setShowSuspendModal(false);
+                      setUserToSuspend(null);
+                      setSuspendReason("");
+                    }}
+                    className={styles.btn}
+                    disabled={actionLoading}
+                  >
                     Cancel
                   </button>
                   <button
-                    onClick={() => confirmOpenFor && (isUnarchive ? handleUnarchive(confirmOpenFor) : handleArchive(confirmOpenFor))}
-                    disabled={actionLoading}
-                    className={`${styles.btn} ${isUnarchive ? styles.btnSuccess : styles.btnDanger}`}
+                    onClick={() => handleSuspend(userToSuspend, suspendReason)}
+                    className={`${styles.btn} ${styles.btnWarning}`}
+                    disabled={actionLoading || !suspendReason.trim()}
                   >
-                    {actionLoading ? (isUnarchive ? "Unarchiving..." : "Archiving...") : meta.confirmLabel}
+                    {actionLoading ? "Suspending..." : "Suspend User"}
                   </button>
                 </div>
               </div>
-            );
-          })()}
+            </div>
+          )}
 
-          {/* Viewing user modal */}
           {viewingUser && (
             <div className={styles.modalBackdrop} role="dialog" aria-modal="true" onClick={() => setViewingUser(null)}>
               <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
                 <div className={styles.modalHeader}>
                   <h3>User Details</h3>
                   <button onClick={() => setViewingUser(null)} className={styles.linkBtn}>
-                    <i className="fa fa-times"></i> Close
+                    <i className="fa fa-times"></i>
                   </button>
                 </div>
 
@@ -546,7 +549,7 @@ export default function AdminUserListPage() {
                       aria-label="Copy ID"
                       title="Copy ID"
                     >
-                      <i className="fa-regular fa-copy"></i> {/* ✅ Changed to fa-regular */}
+                      <i className="fa-regular fa-copy"></i>
                     </button>
                   </div>
 
@@ -572,30 +575,43 @@ export default function AdminUserListPage() {
                   <div>{computeCredibilityLabel(viewingUser)}</div>
 
                   <div className={styles.labelCol}>Status</div>
-                  <div>{viewingUser.archived ? "Archived" : isActiveFromLastLogin(viewingUser.lastLogin) ? "Active" : "Inactive"}</div>
+                  <div>{viewingUser.suspended ? "Suspended" : isActiveFromLastLogin(viewingUser.lastLogin) ? "Active" : "Inactive"}</div>
+
+                  {viewingUser.suspended && (
+                    <>
+                      <div className={styles.labelCol}>Suspended At</div>
+                      <div>{viewingUser.suspendedAt ? new Date(viewingUser.suspendedAt).toLocaleString() : "N/A"}</div>
+
+                      <div className={styles.labelCol}>Suspension Reason</div>
+                      <div>{viewingUser.suspensionReason || "No reason provided"}</div>
+                    </>
+                  )}
 
                   <div className={styles.labelCol}>Last Login</div>
                   <div>{viewingUser.lastLogin ? new Date(viewingUser.lastLogin).toLocaleString() : "Never"}</div>
                 </div>
 
                 <div className={styles.modalActions}>
-                  {viewingUser.archived ? (
+                  {viewingUser.suspended ? (
                     <button
-                      onClick={() => handleUnarchive(viewingUser._id)}
+                      onClick={() => handleUnsuspend(viewingUser._id)}
                       className={`${styles.btn} ${styles.btnSuccess}`}
                       disabled={actionLoading}
                     >
                       <i className="fa fa-undo" style={{ marginRight: "8px" }}></i>
-                      {actionLoading ? "Unarchiving..." : "Unarchive User"}
+                      {actionLoading ? "Unsuspending..." : "Unsuspend User"}
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleOpenConfirm(viewingUser._id)}
-                      className={`${styles.btn} ${styles.btnDanger}`}
+                      onClick={() => {
+                        setUserToSuspend(viewingUser._id);
+                        setShowSuspendModal(true);
+                      }}
+                      className={`${styles.btn} ${styles.btnWarning}`}
                       disabled={actionLoading}
                     >
-                      <i className="fa fa-archive" style={{ marginRight: "8px" }}></i>
-                      Archive User
+                      <i className="fa fa-ban" style={{ marginRight: "8px" }}></i>
+                      Suspend User
                     </button>
                   )}
                 </div>

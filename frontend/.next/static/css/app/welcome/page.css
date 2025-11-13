@@ -1,0 +1,351 @@
+/*!*************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[10].use[3]!./src/app/welcome/welcome.css ***!
+  \*************************************************************************************************************************************************************************************************************************************************************************/
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap');
+
+* {
+	margin: 0;
+	padding: 0;
+	font-family: 'Inter', sans-serif;
+	box-sizing: border-box;
+}
+
+html {
+	font-size: 16px;
+	scroll-behavior: smooth;
+}
+
+body{
+  overflow-x: hidden;
+  font-family: 'Roboto', sans-serif;
+    background: radial-gradient(
+    circle at bottom,
+    #00CCCB 54%,      
+    #00CCCB 63%,        
+    #F5F5F5 90%         
+  );
+}
+
+#header {
+	background-size: cover;
+	background-position: center;
+    
+}
+
+nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+  background-color: transparent;
+  height: 6rem;
+}
+
+.logo {
+ margin-left: 2rem;
+ width: 160;
+ height: 40;
+}
+
+.welcome_logo {
+	width: 18.75%;
+	max-width: 18.75rem;
+	margin-left: 2.5%;
+}
+
+
+.nav-list {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  list-style: none;
+  transition: all 0.3s ease-in-out;
+}
+
+nav ul li {
+	list-style: none;
+}
+
+nav ul li a {
+	text-decoration: none;
+    color: #000000;
+    font-size: 1.2rem;
+}
+
+nav ul li:hover, .register-btn:hover {
+	transform: scale(1.05);
+}
+
+#header-text {
+	padding: 5rem 0;
+	color: #000000;
+}
+
+.login-btn, .back-btn {
+	background-color: #00CCCB;
+	color: #ffffff;
+	padding: 0.625rem 1.25rem;
+	border: none;
+	cursor: pointer;
+	font-size: 1.4rem;
+	border-radius: 0.6rem;
+	transition: background 0.3s, transform 0.4s;
+	box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+	margin:0rem;
+}
+
+.back-btn{
+    background-color: transparent;
+    color: #ffffff;
+}
+.register-btn, .admin-btn, .user-btn {
+	background-color: #1C1C1C;
+	color: #ffffff;
+	padding: 0.625rem 2.5rem;
+	border: none;
+	cursor: pointer;
+	font-size: 1.9rem;
+	border-radius: 0.6rem;
+	transition: background 0.3s, transform 0.4s;
+	box-shadow: 0 0.25rem 0.375rem rgba(0, 0, 0, 0.1);
+	margin-right: 1rem;
+}
+
+
+/*welcome*/
+
+  .welcome-container {
+  padding: 5rem;
+  border-radius: 12px;
+  width: 50rem;
+  text-align: center;
+  align-items:center;
+  margin: 0 auto;
+  margin-bottom: 69rem;
+  height: 33rem;
+  margin-top: 2rem;
+}
+
+.welcome-container h1{
+  margin-bottom: 2rem;
+  margin-top: 0rem;
+  color: #1c1c1c;
+  font-size: 3rem;
+}
+
+.welcome-container p{
+  color: #1c1c1c;
+  font-size: 1.2rem;
+}
+
+.welcome-container span {
+  display: flex;
+  font-size: 1rem;
+  text-align: left;
+  align-items: left;
+  margin-left: 6rem;
+  margin-top: 1rem;
+}
+
+.welcome-container button {
+  width: 40%;
+  padding: 0.7rem 2.5rem;
+  background: #1c1c1c;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  margin-top: 2rem;
+  font-size: 1.9rem;;
+	border-radius: 0.6rem;
+	transition: background 0.3s, transform 0.4s;
+}
+
+ /*User Map*/
+
+ /*User Feed*/
+
+ /* Report Cards */
+
+ /*My Reports*/
+
+
+  /*User Profile*/
+
+
+/*Admin Dashboard*/
+
+
+/*Admin Report*/
+
+
+@media (min-width: 1440px) {
+  .container,
+  #about,
+  #services {
+    width: 90%;
+    max-width: 1400px; 
+  }
+
+  .row h1 {
+    font-size: 4rem; 
+  }
+
+  .row p {
+    font-size: 1.2rem; 
+  }
+
+  .about_row p {
+    padding: 6rem 10rem; 
+  }
+
+  .laptop {
+    width: 70%;
+    max-width: 800px;
+  }
+
+  .services_row1 {
+    gap: 4rem; 
+  }
+
+  .services_card p {
+    font-size: 1.3rem;
+  }
+}
+
+
+@media (max-width: 1024px) {
+  .container,
+  #about,
+  #services {
+    width: 95%;
+    height: auto;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+
+  .row h1 {
+    font-size: 3rem;
+  }
+  .row p {
+    font-size: 1rem;
+  }
+
+  #about h1,
+  #services h1 {
+    font-size: 2.5rem;
+  }
+
+  .about_row {
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .about_row p {
+    padding: 3rem 2rem;
+    margin-top: 0;
+  }
+
+  .laptop {
+    width: 60%;
+    height: auto;
+    margin: 0 auto;
+  }
+
+  .services_row1 {
+    flex-wrap: wrap;
+    gap: 2rem;
+  }
+
+  .services_card {
+    flex-basis: 40%;
+    margin: 1rem 0;
+  }
+}
+
+
+@media (max-width: 768px) {
+
+  .container,
+  #about,
+  #services {
+    width: 90%;
+    height: auto; 
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    border-radius: 2rem; 
+  }
+
+  
+  .row {
+    margin-top: 3rem;
+  }
+  .row h1 {
+    font-size: 2.5rem; 
+  }
+  #about h1,
+  #services h1 {
+    font-size: 2.2rem;
+  }
+  
+  .about_row {
+    flex-direction: column;
+    text-align: center;
+  }
+  .about_row p {
+    padding: 2rem 1rem;
+    margin-top: 0;
+    order: 2; 
+  }
+  .laptop {
+    margin: 0 auto;
+    width: 90%;
+    max-width: 450px;
+    height: auto;
+    order: 1; 
+  }
+
+
+
+  .services_row1 {
+    flex-wrap: wrap;
+    gap: 1.5rem;
+  }
+  .services_card {
+    margin: 0 1rem;
+    flex-basis: 40%; 
+}
+
+}
+
+@media (max-width: 640px) {
+ 
+  .row h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+  }
+  .row p {
+    font-size: 0.9rem;
+  }
+  .register-btn, .login-btn {
+    font-size: 1.2rem;
+    padding: 0.5rem 1.5rem;
+  }
+
+  .services_row1 {
+    flex-direction: column;
+    align-items: center;
+  }
+  .services_card {
+    flex-basis: 70%;
+    margin-bottom: 2rem;
+  }
+
+  .nav-list li:not(:last-child) {
+    display: none;
+  }
+
+
+
+
+}

@@ -116,6 +116,95 @@ const emailTemplates = {
       </html>
     `,
   }),
+
+  userSuspended: (userName, reason) => ({
+    subject: '⚠️ Your FixIt PH Account Has Been Suspended',
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
+            .content { padding: 20px; background: #f8f9fa; }
+            .reason-box { background: white; padding: 15px; margin: 15px 0; border-left: 4px solid #dc3545; }
+            .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>⚠️ Account Suspended</h1>
+            </div>
+            <div class="content">
+              <p>Dear ${userName},</p>
+              <p>Your FixIt PH account has been suspended by our administration team.</p>
+              
+              <div class="reason-box">
+                <h3>Suspension Reason:</h3>
+                <p>${reason}</p>
+              </div>
+
+              <p><strong>What this means:</strong></p>
+              <ul>
+                <li>You cannot log in to your account</li>
+                <li>You cannot create or view reports</li>
+                <li>Your profile is temporarily hidden</li>
+              </ul>
+
+              <p>If you believe this suspension was made in error or would like to appeal, please contact our support team.</p>
+            </div>
+            <div class="footer">
+              <p>FixIt PH - Community Reporting System</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+  }),
+
+  userUnsuspended: (userName) => ({
+    subject: '✅ Your FixIt PH Account Has Been Restored',
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #28a745; color: white; padding: 20px; text-align: center; }
+            .content { padding: 20px; background: #f8f9fa; }
+            .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>✅ Account Restored</h1>
+            </div>
+            <div class="content">
+              <p>Dear ${userName},</p>
+              <p>Good news! Your FixIt PH account suspension has been lifted.</p>
+              
+              <p><strong>You can now:</strong></p>
+              <ul>
+                <li>Log in to your account</li>
+                <li>Create and view reports</li>
+                <li>Participate in the community</li>
+              </ul>
+
+              <p>Please remember to follow our community guidelines to avoid future suspensions.</p>
+              <p>Welcome back!</p>
+            </div>
+            <div class="footer">
+              <p>FixIt PH - Community Reporting System</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+  })
 };
 
 // Send email function
