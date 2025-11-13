@@ -275,38 +275,38 @@ export default function AdminReportsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxOpen, currentReportImages.length]);
 
-  const authoritiesByCategory: Record<string, { name: string; email: string }[]> = {
+  const authoritiesByCategory: Record<string, { name: string; department: string; email?: string }[]> = {
     "infrastructure": [
-      { name: "Public Works Office", email: verificationEmail },
-      { name: "Traffic Management", email: verificationEmail }
+      { name: "Engineering Department", department: "City Engineer’s Office" },
+      { name: "Office of Traffic Management and Public Safety (OTMPS)", department: "Traffic & Transport Management" }
     ],
     "utilities": [
-      { name: "City Electric Office", email: verificationEmail },
-      { name: "Water Services", email: verificationEmail }
+      { name: "Public Utilities Department", department: "Electric Utility Division" },
+      { name: "Subic Water and Sewerage Company, Inc. (SUBICWATER)", department: "Water & Sewerage Utility" }
     ],
     "sanitation and waste": [
-      { name: "Sanitation Department", email: verificationEmail },
-      { name: "Solid Waste Management", email: verificationEmail }
+      { name: "Environmental Sanitation & Management Office", department: "Solid Waste Management Division" },
     ],
     "environment and public spaces": [
-      { name: "Parks and Environment", email: verificationEmail },
-      { name: "Environmental Services", email: verificationEmail }
+      { name: "Parks & Plaza Management Office (PPMO)", department: "Beautification & Public Spaces" },
+      { name: "Environmental Sanitation & Management Office (ESMO)", department: "Environmental Services Division" }
     ],
     "community and safety": [
-      { name: "Local Police Station", email: verificationEmail },
-      { name: "Barangay Office", email: verificationEmail }
+      { name: "Olongapo City Police Office (OCPO)", department: "Law Enforcement" },
+      { name: "Barangay Office – [specific barangay]", department: "Local Barangay Government Unit" }
     ],
     "government / administrative": [
-      { name: "City Hall", email: verificationEmail },
-      { name: "Municipal Administrative Office", email: verificationEmail }
+      { name: "Office of the City Administrator", department: "City Government Admin" },
+      { name: "Office of the Mayor", department: "Executive Leadership" }
     ],
     "others": [
-      { name: "City Hall", email: verificationEmail }
+      { name: "Office of the Mayor", department: "General catch-all" }
     ],
     "default": [
-      { name: "City Hall", email: verificationEmail }
+      { name: "Office of the Mayor", department: "Fallback" }
     ]
   };
+
 
   const openAuthorityModal = (report: Report) => {
     setSelectedReport(report);
@@ -618,7 +618,7 @@ export default function AdminReportsPage() {
                   <button
                     key={a.email}
                     className={`${styles.actionBtn} ${styles.authorityBtn}`}
-                    onClick={() => sendReportToAuthority(a.email)}
+                    onClick={() => sendReportToAuthority(a.email?? "")}
                   >
                     {a.name}
                   </button>
