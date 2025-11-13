@@ -1,7 +1,16 @@
 .adminSummaryRoot {
+  /* Align with admin-dashboard look & tokens */
+  --ar-bg: #f6f8fb;
+  --ar-surface: #ffffff;
+  --ar-muted: #6b7280;
+  --ar-ink: #0b1220;
+  --ar-accent: #2563eb;
+  --ar-radius: 12px;
+  --ar-shadow: 0 8px 30px rgba(2,6,23,0.06);
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--ar-bg);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--ar-ink);
 }
 
 /* Header styles */
@@ -71,22 +80,25 @@
 /* Main content */
 .mainContent {
   max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  margin: 22px auto 80px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  margin-left: 11rem; /* account for left sidebar */
 }
 
 .headerTitle {
-  text-align: center;
-  margin-bottom: 3rem;
-  color: white;
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  color: var(--ar-ink);
 }
 
 .headerTitle h1 {
-  font-size: 3rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  margin: 0;
 }
 
 .headerTitle p {
@@ -95,10 +107,11 @@
   margin: 0;
 }
 
+/* Removed page-entry animation to prevent twitching during navigation */
+
 .exportSection {
-  position: absolute;
-  top: 0;
-  right: 0;
+  position: static;
+  margin-left: auto;
 }
 
 /* Summary container */
@@ -377,15 +390,16 @@
 }
 
 .chartHeader {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #e2e8f0;
+  background: transparent;
+  color: var(--ar-ink);
+  padding: 0;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
 }
 
 .chartHeader h4 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -393,7 +407,7 @@
 }
 
 .chartContainer {
-  padding: 2rem;
+  padding: 12px 0 0 0;
   height: 350px;
   position: relative;
 }

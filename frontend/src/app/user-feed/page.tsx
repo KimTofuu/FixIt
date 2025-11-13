@@ -5,9 +5,10 @@ import Head from "next/head";
 import dynamic from "next/dynamic";
 import styles from "./user-feed.module.css";
 import Image from "next/image";
+import Link from "next/link";
 import { toast } from "react-toastify";
 import { useLoader } from "@/context/LoaderContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 interface Report {
   _id: string;
@@ -135,6 +136,7 @@ const handleHelpfulVote = async (reportId: string, setReports: React.Dispatch<Re
 
 export default function UserFeedPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const modalMapRef = useRef<HTMLDivElement>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMarker, setModalMarker] = useState<any>(null);
@@ -609,12 +611,13 @@ export default function UserFeedPage() {
       <header className={styles.headerWrap}>
         <nav className={styles.nav}>
           <div className={styles.brand}>
-            <Image
+              <Image
               src="/images/Fix-it_logo_3.png"
               alt="Fixit Logo"
               className={styles.logo}
               width={160}
-              height={40}
+                height={40}
+                priority
             />
           </div>
 
@@ -628,35 +631,35 @@ export default function UserFeedPage() {
 
           <ul className={`${styles.navList} ${menuOpen ? styles.open : ""}`}>
             <li>
-              <a className={styles.navLink} href="/user-map">
+              <Link className={`${styles.navLink} ${pathname === '/user-map' ? styles.active : ''}`} href="/user-map">
                 Map
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.navLink} href="/user-feed">
+              <Link className={`${styles.navLink} ${pathname === '/user-feed' ? styles.active : ''}`} href="/user-feed">
                 Feed
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.navLink} href="/user-myreports">
+              <Link className={`${styles.navLink} ${pathname === '/user-myreports' ? styles.active : ''}`} href="/user-myreports">
                 My Reports
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.profileLink} href="/user-profile">
+              <Link href="/user-profile" className={styles.profileLink}>
                 <img
                   id="profilePic"
                   src={profilePicUrl}
                   alt="User Profile"
                   className={styles.profilePic}
                   style={{ 
-                    width: '38px', 
-                    height: '38px', 
-                    borderRadius: '50%',
+                    width: '44px', 
+                    height: '44px', 
+                    borderRadius: '8px',
                     objectFit: 'cover'
                   }}
                 />
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
@@ -693,7 +696,7 @@ export default function UserFeedPage() {
           <div className={styles.toolbar} role="toolbar" aria-label="Reports toolbar">
           <div className={styles.toolbarInner}>
             <button
-              className={styles.reportBtn}
+              className={`${styles.reportBtn} btn btnPrimary`}
               onClick={() => setModalVisible(true)}
             >
               + Add Report
@@ -775,13 +778,9 @@ export default function UserFeedPage() {
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '4px',
-                                    padding: '2px 8px',
-                                    backgroundColor: getLevelColor(r.user.reputation.level),
-                                    color: 'white',
-                                    borderRadius: '12px',
                                     fontSize: '11px',
                                     fontWeight: '600',
-                                   
+                                    color: getLevelColor(r.user.reputation.level)
                                   }}
                                   title={`${r.user.reputation.level} - ${r.user.reputation.points} points`}
                                 >
@@ -850,7 +849,7 @@ export default function UserFeedPage() {
                       <div className={styles.reportActions}>
                         <button
                           type="button"
-                          className={`${styles.helpfulBtn} ${hasVoted ? styles.voted : ''}`}
+                          className={`${styles.helpfulBtn} ${hasVoted ? styles.voted : ''} btn btnSecondary`}
                           onClick={() => {
                             if (!isDisabled) {
                               handleHelpfulVote(r._id, setReports);
@@ -875,7 +874,7 @@ export default function UserFeedPage() {
                         {/* Add Flag Button */}
                         <button
                           type="button"
-                          className={styles.flagBtn}
+                          className={`${styles.flagBtn} btn btnDestructiveOutline`}
                           onClick={() => openFlagModal(r._id)}
                           title="Flag this report as inappropriate"
                         >
@@ -1095,7 +1094,7 @@ export default function UserFeedPage() {
                 </div>
                </div>
               <div className={styles.submitRow}>
-                <button type="submit" className={styles.submitBtn}>Submit Report</button>
+                <button type="submit" className={`${styles.submitBtn} btn btnPrimary`}>Submit Report</button>
               </div>
             </form>
           </div>
@@ -1162,18 +1161,7 @@ export default function UserFeedPage() {
               </div>
 
               <div className={styles.submitRow}>
-                <button
-                  type="button"
-                  className={styles.cancelBtn}
-                  onClick={() => {
-                    setFlagModalVisible(false);
-                    setFlagForm({ reason: "", description: "" });
-                    setSelectedReportId(null);
-                  }}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className={styles.submitBtn}>
+                <button type="submit" className={`${styles.submitBtn} btn btnPrimary`}>
                   Submit Flag
                 </button>
               </div>

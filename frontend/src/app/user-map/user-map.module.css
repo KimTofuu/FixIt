@@ -7,12 +7,12 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 15rem;
+  width: 13rem;
   z-index: 1400;
   display: flex;
   flex-direction: column;
   box-shadow: 6px 0 30px rgba(10,15,40,0.06);
-  background: transparent;
+  background: #ffffff;
   justify-content: center;
 }
 
@@ -24,7 +24,7 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
-  background: var(--nav-bg);
+  background: #ffffff; /* solid white/nav background */
   border-radius: 0 12px 12px 0;
   box-sizing: border-box;
   pointer-events: auto;
@@ -35,10 +35,15 @@
 .brand { display:flex; align-items:center; gap:0.75rem; padding-bottom:4px; }
 .logo { border-radius:8px; display:block; object-fit:contain; }
 
+/* Stabilize brand/logo sizing to prevent twitch on navigation */
+.brand { width: 160px; height: 40px; align-self: center; flex: 0 0 auto; contain: layout paint; }
+.logo { width: 160px; height: 40px; transition: none !important; backface-visibility: hidden; -webkit-font-smoothing: antialiased; }
+.nav, .nav * { transition-property: none !important; }
+
 .navList { display:flex; gap:0.5rem; align-items:center; flex-direction: column; list-style:none; margin: 2rem 0 0 0; padding:0; }
 .navLink { display:flex; align-items:center; gap:0.6rem; padding:0.6rem 0.9rem; color:#071427; text-decoration:none; font-weight:600; border-radius:10px; transition: background 160ms ease, transform 120ms ease, color 120ms ease; }
-.navLink:hover { background: rgba(102,126,234,0.12); transform: translateX(4px); color: var(--accent); }
-.navLink.active { background: linear-gradient(90deg,var(--accent),#764ba2); color: #fff; box-shadow: 0 8px 24px rgba(102,126,234,0.12); }
+.navLink:hover { background: rgba(6, 182, 212, 0.12); transform: translateX(4px); color: #0f766e; }
+.navLink.active { background: #00CCCB; color: #ffffff; box-shadow: 0 8px 24px rgba(0, 204, 203, 0.2); }
 
 .profileLink { display:flex; align-items:center; gap:8px; padding:0.4rem; margin-top: 20rem; border-radius:10px; text-decoration:none; color:inherit; }
 .profilePic { width:44px; height:44px; border-radius:10px; object-fit:cover; box-shadow: 0 6px 22px rgba(2,6,23,0.08); }
@@ -49,11 +54,10 @@
   top: 0;
   right: 0;
   bottom: 0;
-  /* fallback to 240px if variable unavailable */
-  left: var(--nav-width, 240px);
+  left: 13rem;
   z-index: 0;
   display: block;
-  background: #e9eef3;
+  background: #f6f8fb;
   font-family: 'Poppins', 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -71,11 +75,11 @@
   /* moved to top-left of the map area and made slightly wider */
   position: fixed;
   top: 1.25rem;
-  left: calc(var(--nav-width, 240px) + 1rem);
+  left: calc(13rem + 1rem);
   z-index: 1500;
   padding: 1rem 1.6rem; /* wider */
   min-width: 140px;
-  background: linear-gradient(90deg, #06b6d4, #0891b2);
+  background: linear-gradient(90deg, #2563eb, #06b6d4);
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -83,11 +87,11 @@
   display: inline-flex;
   gap: 0.6rem;
   align-items: center;
-  box-shadow: 0 10px 30px rgba(3, 102, 117, 0.18);
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.18);
   cursor: pointer;
   transition: box-shadow 140ms;
 }
-.reportBtn:hover { transform: translateY(-3px); box-shadow: 0 14px 38px rgba(3, 102, 117, 0.22); }
+.reportBtn:hover { transform: translateY(-3px); box-shadow: 0 14px 38px rgba(37, 99, 235, 0.22); }
 
 /* modal backdrop + container */
 .modal {
@@ -99,6 +103,11 @@
   background: rgba(7, 12, 18, 0.55);
   z-index: 1600;
   padding: 1.25rem;
+}
+
+/* Smooth page transition disabled to prevent initial twitch */
+@media (prefers-reduced-motion: no-preference) {
+  .fullMapWrap { animation: none; }
 }
 
 /* modal card */
@@ -220,7 +229,7 @@
   color: white;
   padding: 12px 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  animation: slideDown 0.3s ease-out;
+  animation: none;
 }
 
 @keyframes slideDown {
@@ -370,6 +379,66 @@
 }
 
 /* responsive rules */
+.urgentToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff5f5, #ffffff);
+  border: 1px dashed rgba(239, 68, 68, 0.35);
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.08);
+}
+.urgentToggle label {
+  font-weight: 800;
+  color: #ef4444;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.urgentToggle label::before {
+  content: "\26A0"; /* warning sign */
+  font-size: 16px;
+  line-height: 1;
+}
+.urgentToggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  position: relative;
+  outline: none;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.urgentToggle input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(2,6,23,0.1);
+  transition: transform 160ms ease;
+}
+.urgentToggle input[type="checkbox"]:checked {
+  background: linear-gradient(90deg, #ef4444, #f97373);
+  border-color: #ef4444;
+  box-shadow: 0 8px 18px rgba(239, 68, 68, 0.18);
+}
+.urgentToggle input[type="checkbox"]:checked::after {
+  transform: translateX(20px);
+}
+.urgentToggle input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
 @media (max-width: 1024px) {
   .formGrid { grid-template-columns: 1fr 340px; }
   .modalMap { height: 200px; }
@@ -391,7 +460,7 @@
 
   .nav {
     flex-direction: row;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     border-radius: 0 0 12px 12px;
   }
 
@@ -400,18 +469,17 @@
   .navList {
     display: none;
     position: absolute;
-    top: 60px;
+    top: 56px;
     right: 12px;
-    background: rgba(0,0,0,0.6);
+    background: rgba(255,255,255,0.98);
     padding: 0.75rem;
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(2,6,23,0.12);
-    flex-direction: column;
-    gap: 0.5rem;
-    min-width: 160px;
+    flex-direction: row;
+    gap: 1rem;
   }
   .navList.open { display: flex; }
-  .hamburger { display: inline-flex; z-index: 1550; color: #000; }
+  .hamburger { display: inline-flex; z-index: 1550; }
 
   .fullMap { min-height: 100vh; }
   .reportBtn { right: 1rem; bottom: 1.2rem; }
@@ -510,7 +578,7 @@
   color: white;
   padding: 12px 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  animation: slideDown 0.3s ease-out;
+  animation: none;
 }
 
 @keyframes slideDown {

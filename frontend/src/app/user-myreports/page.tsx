@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import styles from "./user-myreports.module.css";
 import { toast } from "react-toastify";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 interface Report {
   _id: string;
@@ -45,6 +45,7 @@ interface UserProfile {
 
 export default function UserMyReportsPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [search, setSearch] = useState("");
   const [reports, setReports] = useState<Report[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -54,6 +55,7 @@ export default function UserMyReportsPage() {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; index: number } | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
 
   // Add Report modal state (from user-map)
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -453,6 +455,30 @@ export default function UserMyReportsPage() {
     }
   };
 
+  // Helper: determine if status is locked (in-progress or resolved)
+  const isLockedStatus = (s?: string) => {
+    const lower = String(s || '').toLowerCase();
+    return lower.includes('in-progress') || lower.includes('progress') || lower.includes('resolved') || lower.includes('resolve');
+  };
+
+  // Wrapper: gate edit with status warning
+  const handleAttemptEdit = (report: Report) => {
+    if (isLockedStatus(report.status)) {
+      toast.warn(`You can't edit a report that is ${report.status}.`);
+      return;
+    }
+    handleEditClick(report);
+  };
+
+  // Wrapper: gate delete with status warning
+  const handleAttemptDelete = (report: Report, index: number) => {
+    if (isLockedStatus(report.status)) {
+      toast.warn(`You can't delete a report that is ${report.status}.`);
+      return;
+    }
+    confirmDelete(report._id, index);
+  };
+
   // ✅ Update handleEditClick
   const handleEditClick = (report: Report) => {
     const existingImages = report.images && report.images.length > 0 
@@ -660,7 +686,7 @@ export default function UserMyReportsPage() {
       <header className={styles.headerWrap}>
         <nav className={styles.nav}>
           <div className={styles.brand}>
-            <Image src="/images/Fix-it_logo_3.png" alt="Fixit Logo" className={styles.logo} width={160} height={40} />
+            <Image src="/images/Fix-it_logo_3.png" alt="Fixit Logo" className={styles.logo} width={160} height={40} priority />
           </div>
 
           <button
@@ -672,9 +698,9 @@ export default function UserMyReportsPage() {
           </button>
 
           <ul className={`${styles.navList} ${menuOpen ? styles.open : ""}`}>
-            <li><Link href="/user-map" className={styles.navLink}>Map</Link></li>
-            <li><Link href="/user-feed" className={styles.navLink}>Feed</Link></li>
-            <li><Link href="/user-myreports" className={styles.navLink}>My Reports</Link></li>
+            <li><Link href="/user-map" className={`${styles.navLink} ${pathname === '/user-map' ? styles.active : ''}`}>Map</Link></li>
+            <li><Link href="/user-feed" className={`${styles.navLink} ${pathname === '/user-feed' ? styles.active : ''}`}>Feed</Link></li>
+            <li><Link href="/user-myreports" className={`${styles.navLink} ${pathname === '/user-myreports' ? styles.active : ''}`}>My Reports</Link></li>
             <li>
               <Link href="/user-profile" className={styles.profileLink}>
                 <img 
@@ -682,9 +708,9 @@ export default function UserMyReportsPage() {
                   alt="User Profile" 
                   className={styles.profilePic}
                   style={{ 
-                    width: '38px', 
-                    height: '38px', 
-                    borderRadius: '50%',
+                    width: '44px', 
+                    height: '44px', 
+                    borderRadius: '8px',
                     objectFit: 'cover'
                   }}
                 />
@@ -772,7 +798,9 @@ export default function UserMyReportsPage() {
                             {report.category ?? "Uncategorized"}
                           </p>
 
-                          <p className={styles.reportLocation}><i className="fa-solid fa-location-dot"></i> {report.location}</p>
+                          <p className={styles.reportLocation} title={report.location || ''}>
+                            <i className="fa-solid fa-location-dot"></i> {report.location}
+                          </p>
 
                           <div className={styles.statusPriorityRow}>
                             <span className={`${styles.reportStatus} ${styles[statusClass] || ""}`}>
@@ -785,8 +813,46 @@ export default function UserMyReportsPage() {
 
                         <div className={styles.reportImage}>
                           <div className={styles.cardActions}>
-                            <button className={styles.editBtn} onClick={() => handleEditClick(report)}>Edit</button>
-                            <button className={styles.deleteBtn} onClick={() => confirmDelete(report._id, i)}>Delete</button>
+                            <button
+                              type="button"
+                              className={`btn btnSecondary ${styles.kebabBtn}`}
+                              aria-haspopup="menu"
+                              aria-expanded={openMenuId === i}
+                              onClick={() => setOpenMenuId(openMenuId === i ? null : i)}
+                              title="Actions"
+                            >
+                              <span className={styles.kebabIcon}>⋮</span>
+                            </button>
+                            {openMenuId === i && (
+                              <div className={styles.kebabMenu} role="menu">
+                                {(() => {
+                                  const statusNorm = String(report.status || '').toLowerCase().replace(/\s+/g,'-');
+                                  const canModify = statusNorm === 'pending' || statusNorm === 'awaiting-approval';
+                                  return (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className={`btn btnSecondary ${styles.menuItem}`}
+                                        onClick={() => handleAttemptEdit(report)}
+                                        title={isLockedStatus(report.status) ? `You can't edit a report that is ${report.status}` : 'Edit this report'}
+                                        role="menuitem"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={`btn btnDestructive ${styles.menuItem}`}
+                                        onClick={() => handleAttemptDelete(report, i)}
+                                        title={isLockedStatus(report.status) ? `You can't delete a report that is ${report.status}` : 'Delete this report'}
+                                        role="menuitem"
+                                      >
+                                        Delete
+                                      </button>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </div>
 
                           <div className={styles.reportImageGallery}>

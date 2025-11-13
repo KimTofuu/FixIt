@@ -6,6 +6,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import styles from "./AdminMap.module.css";
 import Image from "next/image";
+import AdminNavbar from "@/components/AdminNavbar";
 
 interface Report {
   id: number;
@@ -28,20 +29,30 @@ export default function AdminMapPage() {
   });
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
-  const [menuOpen, setMenuOpen] = useState(false);
+  
   const mapRef = useRef<L.Map | null>(null);
 
-  const profilePicUrl =
-    "https://cdn-icons-png.flaticon.com/512/149/149071.png";
-
-  const customPin = L.icon({
-    iconUrl: "/images/pin.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowUrl: "/images/marker-shadow.png",
-    shadowSize: [41, 41],
-  });
+  // Choose pin icon based on report status
+  const getIconByStatus = (status?: string) => {
+    const s = (status || "").toLowerCase();
+    let iconUrl = "/images/pin_reported.png"; // default: reported / pending
+    if (s.includes("resolve")) {
+      iconUrl = "/images/pin_resolved.png";
+    } else if (s.includes("progress") || s.includes("process")) {
+      iconUrl = "/images/pin_inprogress.png";
+    } else if (s.includes("pending") || s.includes("report")) {
+      iconUrl = "/images/pin_reported.png";
+    }
+    return L.icon({
+      iconUrl,
+      // Slightly wider, slightly shorter
+      iconSize: [36, 44],
+      iconAnchor: [18, 44], // bottom-center
+      popupAnchor: [0, -40],
+      shadowUrl: "/images/marker-shadow.png",
+      shadowSize: [41, 41],
+    });
+  };
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -153,7 +164,7 @@ export default function AdminMapPage() {
         const lng = parseFloat(report.longitude as string);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-        const marker = L.marker([lat, lng], { icon: customPin }).addTo(map);
+        const marker = L.marker([lat, lng], { icon: getIconByStatus(report.status) }).addTo(map);
         marker.bindPopup(`
           <b>${report.title}</b><br>
           <b>Status:</b> ${report.status}<br>
@@ -161,7 +172,7 @@ export default function AdminMapPage() {
         `);
       }
     });
-  }, [reports, resolvedReports, filterStatus, customPin]);
+  }, [reports, resolvedReports, filterStatus]);
 
   const handleFilterClick = (status: StatusFilter) => {
     setFilterStatus((prevStatus) => (prevStatus === status ? "All" : status));
@@ -183,40 +194,7 @@ export default function AdminMapPage() {
       </Head>
 
       <div className={styles.adminReportsRoot}>
-        <header className={styles.header}>
-          <nav className={styles.adminNav}>
-            <div className={styles.navLeft}>
-              <Image src="/images/Fix-it_logo_3.png" alt="Fixit Logo" className={styles.logo} width={160} height={40} />
-            </div>
-
-            <ul className={`${styles.navListUserSide} ${menuOpen ? styles.open : ""}`}>
-            <li>
-              <a href="/admin-dashboard" className={styles.navLink}>Dashboard</a>
-            </li>
-            <li className={styles.activeNavItem}>
-              <a href="/admin-map" className={styles.navLink}>Map</a>
-            </li>
-            <li>
-              <a href="/admin-reports" className={styles.navLink}>Reports</a>
-            </li>
-            <li>
-              <a href="/admin-users" className={styles.navLink}>Users</a>
-            </li>
-            <li>
-              <a href="/admin-flag" className={styles.navLink}>Flagged</a>
-            </li>
-            <li>
-              <a href="/admin-profile" className={styles.adminProfileLink}>
-                <img
-                  src={profilePicUrl}
-                  alt="Admin Profile"
-                  className={styles.adminProfilePic}
-                />
-              </a>
-            </li>
-          </ul>
-          </nav>
-        </header>
+        <AdminNavbar active="map" />
 
         <main className={styles.reportsPage}>
           <div className={styles.mainContainer}>

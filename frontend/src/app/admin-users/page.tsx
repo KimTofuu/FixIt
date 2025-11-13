@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import Head from "next/head";
 import Image from "next/image";
 import styles from "./admin-users.module.css";
+import AdminNavbar from "@/components/AdminNavbar";
 
 type User = {
   _id: string;
@@ -37,7 +38,7 @@ export default function AdminUserListPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "suspended">("all");
   const [suspendReason, setSuspendReason] = useState("");
@@ -47,7 +48,6 @@ export default function AdminUserListPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-  const profilePicUrl = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
   // Check authentication
   useEffect(() => {
@@ -291,52 +291,7 @@ export default function AdminUserListPage() {
       </Head>
 
       <div className={styles.adminUsersRoot}>
-        <header className={styles.header}>
-          <nav className={styles.adminNav}>
-            <div className={styles.navLeft}>
-              <Image src="/images/Fix-it_logo_3.png" alt="Fixit Logo" className={styles.logo} width={160} height={40} />
-            </div>
-
-            <button
-              className={`${styles.hamburger} ${menuOpen ? styles.open : ""}`}
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label={menuOpen ? "Close menu" : "Open menu"}
-              aria-expanded={menuOpen}
-              type="button"
-            >
-              <span className={styles.bar} />
-              <span className={styles.bar} />
-              <span className={styles.bar} />
-            </button>
-
-            <ul className={`${styles.navListUserSide} ${menuOpen ? styles.open : ""}`}>
-              <li>
-                <a href="/admin-dashboard" className={styles.navLink}>Dashboard</a>
-              </li>
-              <li>
-                <a href="/admin-map" className={styles.navLink}>Map</a>
-              </li>
-              <li>
-                <a href="/admin-reports" className={styles.navLink}>Reports</a>
-              </li>
-              <li className={styles.activeNavItem}>
-                <a href="/admin-users" className={styles.navLink}>Users</a>
-              </li>
-              <li>
-                <a href="/admin-flag" className={styles.navLink}>Flagged</a>
-              </li>
-              <li>
-                <a href="/admin-profile" className={styles.adminProfileLink}>
-                  <img
-                    src={profilePicUrl}
-                    alt="Admin Profile"
-                    className={styles.adminProfilePic}
-                  />
-                </a>
-              </li>
-            </ul>
-          </nav>
-        </header>
+        <AdminNavbar active="users" />
 
         <main className={styles.adminUsersMain}>
           <div className={styles.headerRow}>

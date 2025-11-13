@@ -342,3 +342,15 @@
   .servicesCard { padding: 1.25rem; }
   .registerBtn, .loginBtn { font-size: 0.95rem; padding: 0.55rem 1rem; }
 }
+
+  /* Smooth page transition */
+  @media (prefers-reduced-motion: no-preference) {
+    .landingPage {
+      animation: pageFadeIn 240ms cubic-bezier(.2,.9,.2,1) both;
+    }
+
+    @keyframes pageFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  }

@@ -5,6 +5,8 @@ import "leaflet/dist/leaflet.css";
 import styles from "./AdminReports.module.css";
 import Image from "next/image";
 import { toast } from "react-toastify";
+import AdminNavbar from "@/components/AdminNavbar";
+import { getAuthoritiesForCategory } from "@/data/authorities";
 
 interface Comment {
   user: string;
@@ -16,6 +18,7 @@ interface User {
   fName: string;
   lName: string;
   avatarUrl?: string;
+  profilePicture?: { url?: string };
 }
 
 interface Report {
@@ -42,8 +45,11 @@ interface Report {
 
 type AdminStatusFilter = "awaiting-approval" | "pending" | "in-progress" | "resolved";
 
-const formatTimeAgo = (timestamp: string): string => {
-  const diff = Date.now() - new Date(timestamp).getTime();
+const formatTimeAgo = (timestamp?: string): string => {
+  if (!timestamp) return "";
+  const t = new Date(timestamp).getTime();
+  if (isNaN(t)) return "";
+  const diff = Date.now() - t;
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
@@ -57,18 +63,22 @@ export default function AdminReportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<AdminStatusFilter>("awaiting-approval");
   const [searchTerm, setSearchTerm] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [authorityModalOpen, setAuthorityModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [selectedAuthorityId, setSelectedAuthorityId] = useState<string | null>(null);
+  const [selectedAuthorityEmail, setSelectedAuthorityEmail] = useState<string>("");
+
+  // Reject modal state
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReasons, setRejectReasons] = useState<string[]>([]);
+  const [rejectOther, setRejectOther] = useState("");
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentReportImages, setCurrentReportImages] = useState<string[]>([]);
 
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-  const defaultProfilePic = "/images/sample_avatar.png";
-  const profilePicUrl = defaultProfilePic;
-  const verificationEmail = "johnnabunturan1029384756@gmail.com";
+  const verificationEmail = "johnnabunturan1029384756@gmail.com"; // fallback only
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -160,22 +170,42 @@ export default function AdminReportsPage() {
     }
   };
 
-  const handleRejectReport = async (reportId: string) => {
-    if (!window.confirm("Are you sure you want to reject and delete this report?")) {
-      return;
-    }
+  const openRejectModal = (report: Report) => {
+    setSelectedReport(report);
+    setRejectReasons([]);
+    setRejectOther("");
+    setRejectModalOpen(true);
+  };
+
+  const closeRejectModal = () => {
+    setSelectedReport(null);
+    setRejectReasons([]);
+    setRejectOther("");
+    setRejectModalOpen(false);
+  };
+
+  const submitReject = async () => {
+    if (!selectedReport) return;
     try {
       const token = localStorage.getItem("token");
+      const reasons = rejectOther.trim()
+        ? [...rejectReasons, rejectOther.trim()]
+        : rejectReasons;
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/reports/admin/reports/${reportId}/reject`,
+        `${process.env.NEXT_PUBLIC_API_URL}/reports/admin/reports/${selectedReport._id}/reject`,
         {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ reasons }),
         }
       );
       if (res.ok) {
-        setReports((prev) => prev.filter((r) => r._id !== reportId));
-        toast.success("Report has been rejected and deleted.");
+        setReports((prev) => prev.filter((r) => r._id !== selectedReport._id));
+        toast.success("Report rejected.");
+        closeRejectModal();
       } else {
         const errorData = await res.json();
         toast.error(errorData.message || "Failed to reject report.");
@@ -275,46 +305,18 @@ export default function AdminReportsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxOpen, currentReportImages.length]);
 
-  const authoritiesByCategory: Record<string, { name: string; department: string; email?: string }[]> = {
-    "infrastructure": [
-      { name: "Engineering Department", department: "City Engineer’s Office" },
-      { name: "Office of Traffic Management and Public Safety (OTMPS)", department: "Traffic & Transport Management" }
-    ],
-    "utilities": [
-      { name: "Public Utilities Department", department: "Electric Utility Division" },
-      { name: "Subic Water and Sewerage Company, Inc. (SUBICWATER)", department: "Water & Sewerage Utility" }
-    ],
-    "sanitation and waste": [
-      { name: "Environmental Sanitation & Management Office", department: "Solid Waste Management Division" },
-    ],
-    "environment and public spaces": [
-      { name: "Parks & Plaza Management Office (PPMO)", department: "Beautification & Public Spaces" },
-      { name: "Environmental Sanitation & Management Office (ESMO)", department: "Environmental Services Division" }
-    ],
-    "community and safety": [
-      { name: "Olongapo City Police Office (OCPO)", department: "Law Enforcement" },
-      { name: "Barangay Office – [specific barangay]", department: "Local Barangay Government Unit" }
-    ],
-    "government / administrative": [
-      { name: "Office of the City Administrator", department: "City Government Admin" },
-      { name: "Office of the Mayor", department: "Executive Leadership" }
-    ],
-    "others": [
-      { name: "Office of the Mayor", department: "General catch-all" }
-    ],
-    "default": [
-      { name: "Office of the Mayor", department: "Fallback" }
-    ]
-  };
-
-
+  // Authorities are now managed in a shared module and editable via Admin Authorities page
   const openAuthorityModal = (report: Report) => {
     setSelectedReport(report);
+    setSelectedAuthorityId(null);
+    setSelectedAuthorityEmail("");
     setAuthorityModalOpen(true);
   };
 
   const closeAuthorityModal = () => {
     setSelectedReport(null);
+    setSelectedAuthorityId(null);
+    setSelectedAuthorityEmail("");
     setAuthorityModalOpen(false);
   };
 
@@ -332,7 +334,7 @@ export default function AdminReportsPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          authorityEmail: verificationEmail,
+          authorityEmail: authorityEmail || verificationEmail,
           reportId: selectedReport._id,
         }),
       });
@@ -350,46 +352,13 @@ export default function AdminReportsPage() {
   };
 
   const getAuthoritiesForReport = (report: Report) => {
-    const key = (report.category ?? "default").toLowerCase();
-    return authoritiesByCategory[key] ?? authoritiesByCategory["default"];
+    const category = (report.category ?? "default");
+    return getAuthoritiesForCategory(category);
   };
 
   return (
     <div className={styles.adminReportsRoot}>
-        <header className={styles.header}>
-          <nav className={styles.adminNav}>
-            <div className={styles.navLeft}>
-              <Image src="/images/Fix-it_logo_3.png" alt="Fixit Logo" className={styles.logo} width={160} height={40} />
-            </div>
-
-            <ul className={`${styles.navListUserSide} ${menuOpen ? styles.open : ""}`}>
-            <li>
-              <a href="/admin-dashboard" className={styles.navLink}>Dashboard</a>
-            </li>
-            <li>
-              <a href="/admin-map" className={styles.navLink}>Map</a>
-            </li>
-            <li className={styles.activeNavItem}>
-              <a href="/admin-reports" className={styles.navLink}>Reports</a>
-            </li>
-            <li>
-              <a href="/admin-users" className={styles.navLink}>Users</a>
-            </li>
-            <li>
-              <a href="/admin-flag" className={styles.navLink}>Flagged</a>
-            </li>
-            <li>
-              <a href="/admin-profile" className={styles.adminProfileLink}>
-                <img
-                  src={profilePicUrl}
-                  alt="Admin Profile"
-                  className={styles.adminProfilePic}
-                />
-              </a>
-            </li>
-          </ul>
-          </nav>
-        </header>
+        <AdminNavbar active="reports" />
 
       <div className={styles.reportsPage}>
         <main className={styles.mainContainer}>
@@ -435,35 +404,41 @@ export default function AdminReportsPage() {
                   <div className={styles.adminReportCard} key={r._id}>
                     <div className={styles.reportsRow}>
                       <div className={styles.reportMain}>
-                        <div className={styles.reportHeader}>
+                        <div className={styles.reportMetaRow}>
                           <Image
                             src={
-                              (r.user?.avatarUrl as string) || "/images/sample_avatar.png"
+                              (r.user?.profilePicture?.url as string) ||
+                              (r.user?.avatarUrl as string) ||
+                              "/images/sample_avatar.png"
                             }
                             className={styles.reportAvatar}
                             alt="Avatar"
-                            width={40}
-                            height={40}
+                            width={36}
+                            height={36}
                           />
-                          <div className={styles.userMeta}>
+                          <div className={styles.userMetaInline}>
                             <span className={styles.reportUser}>
-                              {r.user?.fName} {r.user?.lName}
+                              {r.user?.fName && r.user?.lName
+                                ? `${r.user.fName} ${r.user.lName}`
+                                : 'Unknown User'}
                             </span>
                             <span className={styles.reportTime}>
-                              {formatTimeAgo(r.timestamp)}
+                              {formatTimeAgo(r.timestamp || r.createdAt || r.updatedAt)}
                             </span>
                           </div>
+                          <span className={styles.categoryPill}>{r.category ?? "Unspecified"}</span>
                           <button
                             id={`bookmark-${r._id}`}
                             className={styles.bookmarkBtn}
                             onClick={() => toggleBookmark(r._id)}
+                            aria-label="Bookmark report"
                           >
                             <i className="fa-regular fa-bookmark" />
                           </button>
                         </div>
 
                         <h3 className={styles.reportTitle}>{r.title}</h3>
-                        <p className={styles.reportCategory}>{r.category ?? "Unspecified"}</p>
+
                         <p className={styles.reportLocation}>
                           <i className="fa-solid fa-location-dot" /> {r.location}
                         </p>
@@ -475,20 +450,20 @@ export default function AdminReportsPage() {
                               onClick={() => handleApproveReport(r._id)}
                               className={`${styles.actionBtn} ${styles.approveBtn}`}
                             >
-                              Approve
+                              <i className="fa-solid fa-check" /> Approve
                             </button>
                             <button
-                              onClick={() => handleRejectReport(r._id)}
-                              className={`${styles.actionBtn} ${styles.rejectBtn}`}
+                              onClick={() => openRejectModal(r)}
+                              className={`${styles.actionBtn} ${styles.rejectBtnOutline}`}
                             >
-                              Reject
+                              <i className="fa-solid fa-xmark" /> Reject
                             </button>
                           </div>
                         ) : (
                           <div className={styles.statusControl}>
                             <label className={styles.statusLabel}>Status</label>
                             <select
-                              value={r.status}
+                              value={activeStatus === 'resolved' ? 'resolved' : (r.status || 'pending')}
                               onChange={(e) =>
                                 updateReportStatus(
                                   r._id,
@@ -517,80 +492,92 @@ export default function AdminReportsPage() {
                       </div>
 
                       <div className={styles.reportImage}>
-                        {/* ✅ Display multiple images */}
-                        <div className={styles.reportImageGallery}>
-                          {(() => {
-                            const allImages = r.images && r.images.length > 0 
-                              ? r.images 
-                              : r.imageUrl 
-                              ? [r.imageUrl]
-                              : r.image 
-                              ? [r.image] 
-                              : ["/images/broken-streetlights.jpg"];
-                            
-                            const displayImages = allImages.slice(0, 4);
-                            const totalImages = allImages.length;
-                            
-                            return displayImages.map((img, idx) => {
-                              const isLastImage = idx === 3 && totalImages === 5;
-                              
-                              return (
-                                <div 
-                                  key={idx} 
-                                  className={styles.reportImageItem}
-                                  onClick={() => openLightbox(allImages, idx)}
-                                  style={{ position: 'relative', cursor: 'pointer' }}
-                                >
-                                  <img
-                                    src={img}
-                                    alt={`Report Image ${idx + 1}`}
-                                    className={styles.inlineImage}
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg";
-                                    }}
-                                  />
-                                  {isLastImage && (
-                                    <div className={styles.imageOverlay}>
-                                      <span className={styles.overlayText}>+1</span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            });
-                          })()}
-                        </div>
+                        {(() => {
+                          const allImages = (r.images && r.images.length > 0)
+                            ? r.images
+                            : r.imageUrl
+                            ? [r.imageUrl]
+                            : r.image
+                            ? [r.image]
+                            : [];
+
+                          if (allImages.length === 0) {
+                            return <div className={styles.noImageProvided}>No image provided</div>;
+                          }
+
+                          const galleryClass = [
+                            styles.reportImageGallery,
+                            allImages.length === 1 ? styles.oneImage : "",
+                            allImages.length === 2 ? styles.twoImages : "",
+                          ].filter(Boolean).join(" ");
+
+                          const displayImages = allImages.slice(0, 4);
+                          const totalImages = allImages.length;
+
+                          return (
+                            <div className={galleryClass}>
+                              {displayImages.map((img, idx) => {
+                                const isLastImage = idx === 3 && totalImages > 4;
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={styles.reportImageItem}
+                                    onClick={() => openLightbox(allImages, idx)}
+                                    style={{ position: 'relative', cursor: 'pointer' }}
+                                  >
+                                    <img
+                                      src={img}
+                                      alt={`Report Image ${idx + 1}`}
+                                      className={styles.inlineImage}
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg";
+                                      }}
+                                    />
+                                    {isLastImage && (
+                                      <div className={styles.imageOverlay}>
+                                        <span className={styles.overlayText}>+{totalImages - 3}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
-                    <div className={styles.reportComments}>
-                      <h4 className={styles.commentsTitle}>Comments</h4>
-                      <ul className={styles.commentList}>
-                        {(r.comments ?? []).map((c, idx) => (
-                          <li key={idx} className={styles.commentItem}>
-                            <b>{c.user}:</b> {c.text}
-                            {c.createdAt && (
-                              <span className={styles.commentTime}>
-                                {new Date(c.createdAt).toLocaleString()}
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                      <input
-                        type="text"
-                        className={styles.commentInput}
-                        placeholder="Add a comment..."
-                        onKeyDown={(e) => {
-                          if (
-                            e.key === "Enter" &&
-                            e.currentTarget.value.trim() !== ""
-                          ) {
-                            addComment(r._id, e.currentTarget.value);
-                            e.currentTarget.value = "";
-                          }
-                        }}
-                      />
-                    </div>
+                    {activeStatus !== "awaiting-approval" && (
+                      <div className={styles.reportComments}>
+                        <h4 className={styles.commentsTitle}>Comments</h4>
+                        <ul className={styles.commentList}>
+                          {(r.comments ?? []).map((c, idx) => (
+                            <li key={idx} className={styles.commentItem}>
+                              <b>{c.user}:</b> {c.text}
+                              {c.createdAt && (
+                                <span className={styles.commentTime}>
+                                  {new Date(c.createdAt).toLocaleString()}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                        <input
+                          type="text"
+                          className={styles.commentInput}
+                          placeholder="Add a comment..."
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === "Enter" &&
+                              e.currentTarget.value.trim() !== ""
+                            ) {
+                              addComment(r._id, e.currentTarget.value);
+                              e.currentTarget.value = "";
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -600,6 +587,59 @@ export default function AdminReportsPage() {
           </div>
         </main>
       </div>
+
+      {rejectModalOpen && (
+        <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Reject report">
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>Reject report</h3>
+              <button className={styles.modalCloseBtn} onClick={closeRejectModal}>
+                <i className="fa-solid fa-times" />
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <p style={{marginTop:0}}>Please select reason(s):</p>
+              <div className={styles.rejectReasons}>
+                {[
+                  'Duplicate report',
+                  'Needs more information',
+                  'Spam or inappropriate content',
+                ].map((reason) => (
+                  <label key={reason} className={styles.checkboxItem}>
+                    <input
+                      type="checkbox"
+                      checked={rejectReasons.includes(reason)}
+                      onChange={(e) => {
+                        setRejectReasons((prev) => e.target.checked
+                          ? [...prev, reason]
+                          : prev.filter((r) => r !== reason));
+                      }}
+                    />
+                    <span>{reason}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{marginTop:10}}>
+                <label className={styles.fieldLabel}>Other (optional)</label>
+                <input
+                  className={styles.commentInput}
+                  placeholder="Add a short note"
+                  value={rejectOther}
+                  onChange={(e) => setRejectOther(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className={styles.modalFooter}>
+              <button className={`${styles.actionBtn} ${styles.cancelBtn}`} onClick={closeRejectModal}>
+                Cancel
+              </button>
+              <button className={`${styles.actionBtn} ${styles.rejectBtn}`} onClick={submitReject}>
+                <i className="fa-solid fa-xmark" /> Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {authorityModalOpen && selectedReport && (
         <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Report to Authorities">
@@ -614,20 +654,40 @@ export default function AdminReportsPage() {
               <p className={styles.modalReportTitle}>{selectedReport.title}</p>
               <p className={styles.modalReportCategory}>Category: {selectedReport.category ?? "Unspecified"}</p>
               <div className={styles.authorityList}>
-                {getAuthoritiesForReport(selectedReport).map((a) => (
-                  <button
-                    key={a.email}
-                    className={`${styles.actionBtn} ${styles.authorityBtn}`}
-                    onClick={() => sendReportToAuthority(a.email?? "")}
-                  >
-                    {a.name}
-                  </button>
-                ))}
+                {getAuthoritiesForReport(selectedReport).map((a) => {
+                  const isSelected = selectedAuthorityId === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      className={[
+                        styles.actionBtn,
+                        styles.authorityBtn,
+                        isSelected ? styles.authorityBtnSelected : "",
+                      ].join(" ")}
+                      onClick={() => {
+                        setSelectedAuthorityId(a.id);
+                        setSelectedAuthorityEmail(a.email ?? "");
+                      }}
+                      aria-pressed={isSelected}
+                    >
+                      {a.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className={styles.modalFooter}>
               <button className={`${styles.actionBtn} ${styles.cancelBtn}`} onClick={closeAuthorityModal}>
                 Cancel
+              </button>
+              <button
+                className={`${styles.actionBtn} ${styles.sendBtn}`}
+                onClick={() => sendReportToAuthority(selectedAuthorityEmail)}
+                disabled={!selectedAuthorityId}
+                aria-disabled={!selectedAuthorityId}
+                title={!selectedAuthorityId ? 'Select an authority first' : 'Send to selected authority'}
+              >
+                Send
               </button>
             </div>
           </div>

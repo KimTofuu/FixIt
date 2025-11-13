@@ -301,3 +301,5 @@
 .status_pending { }
 .status_in_progress { }
 .status_resolved { }
+
+/* Removed page-entry animation to prevent twitching during navigation */
