@@ -3,7 +3,8 @@ const Admin = require('../models/Admins');
 const jwt = require('jsonwebtoken');
 const Report = require('../models/Report');
 const User = require('../models/Users'); // Add this
-const { sendEmail, emailTemplates } = require('../config/emailConfig'); // Add this
+const { sendEmail, emailTemplates } = require('../config/emailConfig');
+const SuspendedUser = require('../models/Suspended'); 
 
 // --- Admin Registration ---
 exports.register = async (req, res) => {
@@ -471,6 +472,318 @@ exports.getUserStats = async (req, res) => {
   } catch (error) {
     console.error('Get user stats error:', error);
     res.status(500).json({ message: 'Server error while fetching stats' });
+  }
+};
+
+exports.suspendUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.userId;
+
+    console.log(`🚫 Admin ${adminId} attempting to suspend user ${userId}`);
+
+    // Find the user in the Users collection
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user is already suspended
+    const existingSuspension = await SuspendedUser.findOne({ originalUserId: userId });
+    if (existingSuspension) {
+      return res.status(400).json({ message: 'User is already suspended' });
+    }
+
+    // ✅ Create suspended user record matching fields
+    const suspendedUser = new SuspendedUser({
+      originalUserId: user._id,
+      fName: user.fName,
+      lName: user.lName,
+      email: user.email,
+      password: user.password,
+      address: user.address || user.barangay || '', // ✅ Use address or barangay
+      barangay: user.barangay || '',
+      contact: user.contact || '', 
+      municipality: user.municipality || '', // ✅ Add municipality
+      profilePicture: user.profilePicture,
+      reputation: user.reputation || {
+        points: 0,
+        level: 'Newcomer',
+        badges: [],
+        totalReports: 0,
+        verifiedReports: 0,
+        resolvedReports: 0,
+        helpfulVotes: 0
+      },
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      suspended: true,
+      suspendedAt: new Date(),
+      suspensionReason: reason,
+      suspendedBy: adminId,
+      originalData: user.toObject() // Store complete original data
+    });
+
+    // Save suspended user
+    await suspendedUser.save();
+    console.log(`✅ User moved to SuspendedUsers collection`);
+
+    // Delete user from Users collection
+    await User.findByIdAndDelete(userId);
+    console.log(`✅ User removed from Users collection`);
+
+    // Send suspension email
+    if (user.email) {
+      try {
+        const userName = `${user.fName} ${user.lName}`;
+        const suspensionEmail = emailTemplates.userSuspended(userName, reason);
+        await sendEmail(user.email, suspensionEmail.subject, suspensionEmail.html);
+        console.log(`📧 Suspension notification sent to ${user.email}`);
+      } catch (emailError) {
+        console.error('⚠️ Failed to send suspension email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
+    res.json({
+      message: 'User suspended successfully and moved to suspended users table',
+      user: {
+        _id: suspendedUser._id,
+        originalUserId: suspendedUser.originalUserId,
+        name: `${suspendedUser.fName} ${suspendedUser.lName}`,
+        email: suspendedUser.email,
+        suspended: true,
+        suspendedAt: suspendedUser.suspendedAt,
+        suspensionReason: suspendedUser.suspensionReason
+      }
+    });
+  } catch (error) {
+    console.error('❌ Suspend user error:', error);
+    res.status(500).json({ message: 'Server error while suspending user' });
+  }
+};
+
+// Unsuspend user - Move from SuspendedUsers back to Users table
+exports.unsuspendUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminId = req.user.userId;
+
+    console.log(`✅ Admin ${adminId} attempting to unsuspend user ${userId}`);
+
+    // Find the suspended user (userId could be either _id or originalUserId)
+    const suspendedUser = await SuspendedUser.findOne({
+      $or: [{ _id: userId }, { originalUserId: userId }]
+    });
+
+    if (!suspendedUser) {
+      console.log('❌ Suspended user not found');
+      return res.status(404).json({ message: 'Suspended user not found' });
+    }
+
+    console.log('📋 Found suspended user:', suspendedUser.email);
+
+    // Check if user already exists in Users collection (shouldn't happen)
+    const existingUser = await User.findById(suspendedUser.originalUserId);
+    if (existingUser) {
+      console.log('⚠️ User already exists in active users collection');
+      // Delete the suspended record and return success
+      await SuspendedUser.findByIdAndDelete(suspendedUser._id);
+      return res.status(200).json({ 
+        message: 'User already exists in active users',
+        user: {
+          _id: existingUser._id,
+          name: `${existingUser.fName} ${existingUser.lName}`,
+          email: existingUser.email,
+          suspended: false
+        }
+      });
+    }
+
+    // Create user object without _id first, then set it
+    const userData = {
+      fName: suspendedUser.fName,
+      lName: suspendedUser.lName,
+      email: suspendedUser.email,
+      password: suspendedUser.password,
+      address: suspendedUser.address,
+      barangay: suspendedUser.barangay,
+      contact: suspendedUser.contact,
+      reputation: suspendedUser.reputation || {
+        points: 0,
+        level: 'Newcomer',
+        totalReports: 0
+      },
+      lastLogin: suspendedUser.lastLogin,
+      createdAt: suspendedUser.createdAt
+    };
+
+    // Create new user instance
+    const restoredUser = new User(userData);
+    
+    // Manually set the _id to preserve the original ID
+    restoredUser._id = suspendedUser.originalUserId;
+    restoredUser.isNew = false; // Tell Mongoose this is not a new document
+
+    // Save restored user using insertOne to bypass some validation
+    try {
+      await User.collection.insertOne({
+        _id: suspendedUser.originalUserId,
+        ...userData,
+        __v: 0
+      });
+      console.log(`✅ User restored to Users collection with original ID`);
+    } catch (insertError) {
+      console.error('❌ Insert error:', insertError);
+      
+      // If insert fails, try update instead
+      if (insertError.code === 11000) {
+        console.log('⚠️ Duplicate key, trying update instead');
+        await User.findByIdAndUpdate(
+          suspendedUser.originalUserId,
+          userData,
+          { upsert: true, new: true }
+        );
+      } else {
+        throw insertError;
+      }
+    }
+
+    // Delete from SuspendedUsers collection
+    await SuspendedUser.findByIdAndDelete(suspendedUser._id);
+    console.log(`✅ User removed from SuspendedUsers collection`);
+
+    // Get the restored user for response
+    const finalUser = await User.findById(suspendedUser.originalUserId);
+
+    // Send unsuspension email
+    if (finalUser && finalUser.email) {
+      const userName = `${finalUser.fName} ${finalUser.lName}`;
+      const unsuspensionEmail = emailTemplates.userUnsuspended(userName);
+      await sendEmail(finalUser.email, unsuspensionEmail.subject, unsuspensionEmail.html);
+      console.log(`📧 Unsuspension notification sent to ${finalUser.email}`);
+    }
+
+    res.json({
+      message: 'User unsuspended successfully and restored to active users',
+      user: {
+        _id: finalUser._id,
+        name: `${finalUser.fName} ${finalUser.lName}`,
+        email: finalUser.email,
+        suspended: false
+      }
+    });
+  } catch (error) {
+    console.error('❌ Unsuspend user error:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ 
+      message: 'Server error while unsuspending user',
+      error: error.message 
+    });
+  }
+};
+
+// Get all users (including suspended users from separate table)
+exports.getAllUsers = async (req, res) => {
+  try {
+    // Get active users
+    const activeUsers = await User.find()
+      .select('fName lName email address barangay lastLogin createdAt reputation')
+      .sort({ createdAt: -1 });
+
+    // Get suspended users
+    const suspendedUsers = await SuspendedUser.find()
+      .select('originalUserId fName lName email address barangay lastLogin createdAt reputation suspended suspendedAt suspensionReason')
+      .sort({ suspendedAt: -1 });
+
+    // Format active users
+    const formattedActiveUsers = activeUsers.map(user => ({
+      _id: user._id,
+      id: user._id,
+      name: `${user.fName} ${user.lName}`,
+      email: user.email,
+      address: user.address || user.barangay || 'No address provided',
+      suspended: false,
+      lastLogin: user.lastLogin,
+      reputation: user.reputation
+    }));
+
+    // Format suspended users
+    const formattedSuspendedUsers = suspendedUsers.map(user => ({
+      _id: user.originalUserId, // Use original user ID for consistency
+      id: user.originalUserId,
+      name: `${user.fName} ${user.lName}`,
+      email: user.email,
+      address: user.address || user.barangay || 'No address provided',
+      suspended: true,
+      suspendedAt: user.suspendedAt,
+      suspensionReason: user.suspensionReason,
+      lastLogin: user.lastLogin,
+      reputation: user.reputation
+    }));
+
+    // Combine both arrays
+    const allUsers = [...formattedActiveUsers, ...formattedSuspendedUsers];
+
+    res.json(allUsers);
+  } catch (error) {
+    console.error('Get all users error:', error);
+    res.status(500).json({ message: 'Server error while fetching users' });
+  }
+};
+
+// Get user statistics (updated to include suspended users)
+exports.getUserStats = async (req, res) => {
+  try {
+    const totalActiveUsers = await User.countDocuments();
+    const totalSuspendedUsers = await SuspendedUser.countDocuments();
+    const totalUsers = totalActiveUsers + totalSuspendedUsers;
+    
+    const activeUsers = await User.countDocuments({
+      lastLogin: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+    });
+    
+    const totalReports = await Report.countDocuments();
+
+    res.json({
+      totalUsers,
+      activeUsers,
+      suspendedUsers: totalSuspendedUsers,
+      totalReports
+    });
+  } catch (error) {
+    console.error('Get user stats error:', error);
+    res.status(500).json({ message: 'Server error while fetching stats' });
+  }
+};
+
+// Get suspended users only
+exports.getSuspendedUsers = async (req, res) => {
+  try {
+    const suspendedUsers = await SuspendedUser.find()
+      .populate('suspendedBy', 'barangayName officialEmail')
+      .select('originalUserId fName lName email address barangay suspendedAt suspensionReason suspendedBy reputation')
+      .sort({ suspendedAt: -1 });
+
+    const formatted = suspendedUsers.map(user => ({
+      _id: user.originalUserId,
+      id: user.originalUserId,
+      name: `${user.fName} ${user.lName}`,
+      email: user.email,
+      address: user.address || user.barangay || 'No address provided',
+      suspended: true,
+      suspendedAt: user.suspendedAt,
+      suspensionReason: user.suspensionReason,
+      suspendedBy: user.suspendedBy,
+      reputation: user.reputation
+    }));
+
+    res.json(formatted);
+  } catch (error) {
+    console.error('Get suspended users error:', error);
+    res.status(500).json({ message: 'Server error while fetching suspended users' });
   }
 };
 

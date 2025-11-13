@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const smsService = require('../config/smsService');
 const { sendEmail, sendOtpEmail, generateOtp } = require('../utils/emailService');
+const SuspendedUser = require('../models/Suspended');
 
 const emailOtpStore = new Map();
 // Configure email transporter
@@ -43,37 +44,62 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    // Check if user exists in active users
+    let user = await User.findOne({ email });
+
+    // ✅ Check if user is suspended
     if (!user) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      const suspendedUser = await SuspendedUser.findOne({ email });
+      
+      if (suspendedUser) {
+        return res.status(403).json({
+          message: 'Your account has been suspended',
+          suspended: true,
+          suspensionReason: suspendedUser.suspensionReason,
+          suspendedAt: suspendedUser.suspendedAt
+        });
+      }
+      
+      return res.status(404).json({ message: 'User not found' });
     }
 
+    // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Generate token
     const token = jwt.sign(
-      { userId: user._id, role: user.role || "user" }, // Include role in JWT
+      { 
+        userId: user._id, 
+        email: user.email,
+        role: 'user' 
+      },
       process.env.JWT_SECRET,
-      { expiresIn: "24h" }
+      { expiresIn: '7d' }
     );
 
-    console.log("✅ User logged in:", user.email, "Role:", user.role || "user");
-
-    // Return role in response
     res.json({
-      message: "Login successful",
+      message: 'Login successful',
       token,
       userId: user._id,
-      role: user.role || "user", // ✅ Add this line
-      fName: user.fName,
-      lName: user.lName
+      role: 'user',
+      user: {
+        id: user._id,
+        email: user.email,
+        name: `${user.fName} ${user.lName}`,
+        address: user.address,
+        barangay: user.barangay
+      }
     });
-
   } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'Server error during login' });
   }
 };
 

@@ -12,13 +12,14 @@ async function loginUser(formData: {
   email: string;
   password: string;
 }) {
- 
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(formData),
   });
-  return res.json();
+  
+  const data = await res.json();
+  return { status: res.status, data };
 }
 
 export default function LoginPage() {
@@ -39,14 +40,12 @@ export default function LoginPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
 
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/login`, {
         method: "POST",
         headers: {
@@ -60,17 +59,16 @@ export default function LoginPage() {
 
       const data = await res.json();
 
-      console.log("📡 Admin login response:", data); // Debug log
+      console.log("📡 Admin login response:", data);
 
       if (res.ok) {
         toast.success(data.message);
         
-        // FIX: Save all necessary data to localStorage
         localStorage.setItem("token", data.token);
-        localStorage.setItem("role", "admin"); // ✅ Add this line
-        localStorage.setItem("userId", data.admin.id); // ✅ Add this line
-        localStorage.setItem("adminEmail", data.admin.email); // Optional
-        localStorage.setItem("barangayName", data.admin.barangayName); // Optional
+        localStorage.setItem("role", "admin");
+        localStorage.setItem("userId", data.admin.id);
+        localStorage.setItem("adminEmail", data.admin.email);
+        localStorage.setItem("barangayName", data.admin.barangayName);
         
         console.log("✅ Saved to localStorage:");
         console.log("  Token:", localStorage.getItem("token") ? "saved" : "missing");
@@ -91,15 +89,45 @@ export default function LoginPage() {
     e.preventDefault();
 
     try {
-      const result = await loginUser(form);
+      const { status, data: result } = await loginUser(form);
       
-      console.log("📡 User login response:", result); // Debug log
+      console.log("📡 User login response:", result);
+      
+      // ✅ Check if user is suspended
+      if (status === 403 && result.suspended) {
+        const suspendedAt = result.suspendedAt 
+          ? new Date(result.suspendedAt).toLocaleDateString() 
+          : 'recently';
+        
+        toast.error(
+          `🚫 Account Suspended: ${result.suspensionReason || 'Your account has been suspended'}`,
+          {
+            autoClose: 6000,
+            style: {
+              background: '#dc3545',
+              color: 'white',
+              fontWeight: 'bold'
+            }
+          }
+        );
+        
+        // Show additional info toast
+        setTimeout(() => {
+          toast.info(
+            `Suspended on: ${suspendedAt}. Contact support for more information.`,
+            {
+              autoClose: 5000
+            }
+          );
+        }, 500);
+        
+        return;
+      }
       
       if (result.token) {
-        // FIX: Save all necessary data
         localStorage.setItem("token", result.token);
-        localStorage.setItem("role", result.role || "user"); // ✅ Add this line
-        localStorage.setItem("userId", result.userId); // ✅ Add this line
+        localStorage.setItem("role", result.role || "user");
+        localStorage.setItem("userId", result.userId);
         
         console.log("✅ Saved to localStorage:");
         console.log("  Token:", localStorage.getItem("token") ? "saved" : "missing");
@@ -113,6 +141,7 @@ export default function LoginPage() {
       }
     } catch (error) {
       toast.error("Network error. Please try again.");
+      console.error("Login error:", error);
     }
   };
 
@@ -123,7 +152,6 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
-    
     document.body.classList.add("login-page-bg");
     
     const el = document.querySelector(`.${styles.container}`);
@@ -135,11 +163,55 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    // Check for error from Google OAuth
     const error = searchParams.get('error');
     const details = searchParams.get('details');
+    const reason = searchParams.get('reason');
+    const date = searchParams.get('date');
+    
+    console.log('=== Login Page URL Params ===');
+    console.log('Error:', error);
+    console.log('Details:', details);
+    console.log('Reason:', reason);
+    console.log('Date:', date);
     
     if (error) {
+      // ✅ Handle suspended user from Google login
+      if (error === 'suspended') {
+        const suspensionReason = reason ? decodeURIComponent(reason) : 'Your account has been suspended';
+        const suspensionDate = date ? decodeURIComponent(date) : 'recently';
+        
+        console.log('🚫 Showing suspension notification');
+        console.log('Reason:', suspensionReason);
+        console.log('Date:', suspensionDate);
+        
+        toast.error(
+          `🚫 Account Suspended: ${suspensionReason}`,
+          {
+            autoClose: 8000,
+            style: {
+              color: 'black',
+              fontWeight: 'bold',
+              fontSize: '16px'
+            }
+          }
+        );
+        
+        setTimeout(() => {
+          toast.warning(
+            `Your account was suspended on ${suspensionDate}. Please contact support for assistance.`,
+            {
+              autoClose: 6000,
+              style: {
+                fontSize: '15px'
+              }
+            }
+          );
+        }, 800);
+        
+        window.history.replaceState({}, '', '/login');
+        return;
+      }
+      
       const errorMessages: Record<string, string> = {
         'auth_failed': 'Google authentication failed. Please try again.',
         'no_code': 'Authorization code not received from Google.',
@@ -149,9 +221,9 @@ export default function LoginPage() {
       };
       
       const message = errorMessages[error] || 'An error occurred during login.';
+      console.log('Showing error toast:', message);
       toast.error(details ? `${message} (${details})` : message);
       
-      // Clean up URL
       window.history.replaceState({}, '', '/login');
     }
   }, [searchParams]);
@@ -175,9 +247,6 @@ export default function LoginPage() {
       <div className={styles.login}>
         <div className={`${styles.loginContainer} ${styles.container}`}>
         <div className={styles.loginLeft}>
-        {/* <h1> Welcome to FIXIT </h1>
-        <p> Secure admin access for faster maintenance and clearer oversight. </p>
-        <p> Sign in to manage issues, review requests, and keep the community running smoothly.</p>  */}
         </div>
         <div className={styles.loginRight}>
           <h1 id="form-title" className={styles.formTitle}>
@@ -247,7 +316,6 @@ export default function LoginPage() {
               Log in
             </button>
 
-            {/* Google Login Button - Only for Residents */}
             <div className={styles.socialRow}>
               <button
                 type="button"
