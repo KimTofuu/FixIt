@@ -585,68 +585,101 @@ exports.unsuspendUser = async (req, res) => {
 
     console.log('📋 Found suspended user:', suspendedUser.email);
 
-    // Check if user already exists in Users collection (shouldn't happen)
-    const existingUser = await User.findById(suspendedUser.originalUserId);
-    if (existingUser) {
+    // ✅ Check if user already exists in Users collection by email OR _id
+    const existingUserByEmail = await User.findOne({ email: suspendedUser.email });
+    const existingUserById = await User.findById(suspendedUser.originalUserId);
+
+    if (existingUserByEmail || existingUserById) {
       console.log('⚠️ User already exists in active users collection');
-      // Delete the suspended record and return success
+      
+      // Delete the suspended record
       await SuspendedUser.findByIdAndDelete(suspendedUser._id);
+      console.log('✅ Removed duplicate suspended user record');
+      
+      const finalUser = existingUserByEmail || existingUserById;
       return res.status(200).json({ 
-        message: 'User already exists in active users',
+        message: 'User already exists in active users. Suspension record removed.',
         user: {
-          _id: existingUser._id,
-          name: `${existingUser.fName} ${existingUser.lName}`,
-          email: existingUser.email,
+          _id: finalUser._id,
+          name: `${finalUser.fName} ${finalUser.lName}`,
+          email: finalUser.email,
           suspended: false
         }
       });
     }
 
-    // Create user object without _id first, then set it
+    // ✅ Prepare user data matching User schema
     const userData = {
       fName: suspendedUser.fName,
       lName: suspendedUser.lName,
       email: suspendedUser.email,
       password: suspendedUser.password,
-      address: suspendedUser.address,
-      barangay: suspendedUser.barangay,
-      contact: suspendedUser.contact,
+      contact: suspendedUser.contact || '',
+      contactVerified: false,
+      barangay: suspendedUser.barangay || '',
+      municipality: suspendedUser.municipality || '',
+      profilePicture: suspendedUser.profilePicture || { url: '', public_id: '' },
+      role: 'user',
       reputation: suspendedUser.reputation || {
         points: 0,
         level: 'Newcomer',
-        totalReports: 0
+        badges: [],
+        totalReports: 0,
+        verifiedReports: 0,
+        resolvedReports: 0,
+        helpfulVotes: 0
       },
-      lastLogin: suspendedUser.lastLogin,
-      createdAt: suspendedUser.createdAt
+      lastActive: new Date(),
+      lastLogin: suspendedUser.lastLogin || new Date(),
+      createdAt: suspendedUser.createdAt || new Date(),
+      archived: false
     };
 
-    // Create new user instance
-    const restoredUser = new User(userData);
-    
-    // Manually set the _id to preserve the original ID
-    restoredUser._id = suspendedUser.originalUserId;
-    restoredUser.isNew = false; // Tell Mongoose this is not a new document
+    console.log('📝 Prepared user data for:', userData.email);
 
-    // Save restored user using insertOne to bypass some validation
+    // ✅ Try to insert directly with original _id
     try {
-      await User.collection.insertOne({
+      const insertResult = await User.collection.insertOne({
         _id: suspendedUser.originalUserId,
         ...userData,
-        __v: 0
+        __v: 0,
+        updatedAt: new Date()
       });
-      console.log(`✅ User restored to Users collection with original ID`);
+      console.log(`✅ User restored to Users collection with original ID:`, insertResult.insertedId);
     } catch (insertError) {
-      console.error('❌ Insert error:', insertError);
+      console.error('❌ Insert error:', insertError.message);
       
-      // If insert fails, try update instead
+      // ✅ If duplicate key error on email, it means user exists - just remove suspension record
       if (insertError.code === 11000) {
-        console.log('⚠️ Duplicate key, trying update instead');
-        await User.findByIdAndUpdate(
-          suspendedUser.originalUserId,
-          userData,
-          { upsert: true, new: true }
-        );
+        console.log('⚠️ Duplicate key error - user already exists');
+        
+        // Check which field caused the duplicate
+        if (insertError.message.includes('email')) {
+          console.log('⚠️ User with this email already exists');
+          
+          // Find the existing user
+          const existingUser = await User.findOne({ email: suspendedUser.email });
+          
+          if (existingUser) {
+            // Delete the suspended record since user is already active
+            await SuspendedUser.findByIdAndDelete(suspendedUser._id);
+            console.log('✅ Removed suspended user record - user is already active');
+            
+            return res.status(200).json({
+              message: 'User already exists in active users',
+              user: {
+                _id: existingUser._id,
+                name: `${existingUser.fName} ${existingUser.lName}`,
+                email: existingUser.email,
+                suspended: false
+              }
+            });
+          }
+        }
+        
+        throw new Error('User already exists in the database');
       } else {
+        // Other errors
         throw insertError;
       }
     }
@@ -658,12 +691,27 @@ exports.unsuspendUser = async (req, res) => {
     // Get the restored user for response
     const finalUser = await User.findById(suspendedUser.originalUserId);
 
+    if (!finalUser) {
+      throw new Error('Failed to retrieve restored user');
+    }
+
+    console.log('✅ Final user retrieved:', {
+      id: finalUser._id,
+      email: finalUser.email,
+      name: `${finalUser.fName} ${finalUser.lName}`
+    });
+
     // Send unsuspension email
-    if (finalUser && finalUser.email) {
-      const userName = `${finalUser.fName} ${finalUser.lName}`;
-      const unsuspensionEmail = emailTemplates.userUnsuspended(userName);
-      await sendEmail(finalUser.email, unsuspensionEmail.subject, unsuspensionEmail.html);
-      console.log(`📧 Unsuspension notification sent to ${finalUser.email}`);
+    if (finalUser.email) {
+      try {
+        const userName = `${finalUser.fName} ${finalUser.lName}`;
+        const unsuspensionEmail = emailTemplates.userUnsuspended(userName);
+        await sendEmail(finalUser.email, unsuspensionEmail.subject, unsuspensionEmail.html);
+        console.log(`📧 Unsuspension notification sent to ${finalUser.email}`);
+      } catch (emailError) {
+        console.error('⚠️ Failed to send unsuspension email:', emailError);
+        // Don't fail the request if email fails
+      }
     }
 
     res.json({
