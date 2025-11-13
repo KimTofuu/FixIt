@@ -136,32 +136,68 @@ export default function UserMapPage() {
   useEffect(() => {
     if (feedMapRef.current) return;
 
-    const feedMap = L.map("map").setView([14.8292, 120.2828], 13);
-    feedMapRef.current = feedMap;
+    // ✅ Wait for DOM to be ready
+    const mapElement = document.getElementById("map");
+    if (!mapElement) {
+      console.warn('Map element not found in DOM yet');
+      return;
+    }
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
-    }).addTo(feedMap);
-    // Leaflet needs a resize/invalidate after layout changes (sidebar repositioning)
-    setTimeout(() => {
-      try { feedMap.invalidateSize(); } catch (e) { /* ignore */ }
-    }, 200);
+    try {
+      const feedMap = L.map("map").setView([14.8292, 120.2828], 13);
+      feedMapRef.current = feedMap;
 
-    const onResize = () => { try { feedMap.invalidateSize(); } catch (e) {} };
-    window.addEventListener('resize', onResize);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+      }).addTo(feedMap);
 
-    // cleanup listener on unmount
-    return () => {
-      window.removeEventListener('resize', onResize);
-      try { feedMap.remove(); } catch (e) {}
-    };
+      // ✅ Ensure map is ready before continuing
+      feedMap.whenReady(() => {
+        console.log('✅ Feed map is ready');
+        setTimeout(() => {
+          try { 
+            feedMap.invalidateSize(); 
+          } catch (e) { 
+            console.error('Error invalidating map size:', e);
+          }
+        }, 200);
+      });
+
+      const onResize = () => { 
+        try { 
+          feedMap.invalidateSize(); 
+        } catch (e) {
+          console.error('Error on resize:', e);
+        } 
+      };
+      window.addEventListener('resize', onResize);
+
+      return () => {
+        window.removeEventListener('resize', onResize);
+        try { 
+          feedMap.remove(); 
+          feedMapRef.current = null;
+        } catch (e) {
+          console.error('Error removing map:', e);
+        }
+      };
+    } catch (error) {
+      console.error('Failed to initialize map:', error);
+    }
   }, []);
 
   useEffect(() => {
     const feedMap = feedMapRef.current;
     if (!feedMap) return;
 
+    // ✅ Wait for map to be fully ready
+    if (!feedMap.getContainer()) {
+      console.warn('Map container not ready yet');
+      return;
+    }
+
+    // Remove existing markers
     feedMap.eachLayer((layer) => {
       if (layer instanceof L.Marker) {
         feedMap.removeLayer(layer);
@@ -170,72 +206,106 @@ export default function UserMapPage() {
 
     reports.forEach((r) => {
       if (r.latitude && r.longitude) {
-        const m = L.marker([parseFloat(String(r.latitude)), parseFloat(String(r.longitude))], {
-          icon: customPin,
-        }).addTo(feedMap);
-        
-        const userName = r.user ? `${r.user.fName} ${r.user.lName}` : 'Anonymous';
-        const userPic = r.user?.profilePicture?.url || defaultProfilePic;
-        
-        // ✅ Get all images
-        const allImages = r.images && r.images.length > 0 ? r.images : r.image ? [r.image] : [];
-        const imageCount = allImages.length;
-        
-        m.bindPopup(`
-          <div style="text-align: center; min-width: 200px;">
-            <img src="${userPic}" alt="${userName}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 8px;" />
-            <br>
-            <b>${r.title}</b><br>
-            <b>Reported by:</b> ${userName}<br>
-            <b>Status:</b> ${r.status}<br>
-            <b>Location:</b> ${r.location}<br>
-            ${imageCount > 0 ? `<b>Images:</b> ${imageCount}` : ''}
-          </div>
-        `);
+        try {
+          const lat = parseFloat(String(r.latitude));
+          const lng = parseFloat(String(r.longitude));
+          
+          // ✅ Validate coordinates
+          if (isNaN(lat) || isNaN(lng)) {
+            console.warn(`Invalid coordinates for report ${r._id}:`, { lat, lng });
+            return;
+          }
+
+          const m = L.marker([lat, lng], {
+            icon: customPin,
+          }).addTo(feedMap);
+          
+          const userName = r.user ? `${r.user.fName} ${r.user.lName}` : 'Anonymous';
+          const userPic = r.user?.profilePicture?.url || defaultProfilePic;
+          
+          // ✅ Get all images
+          const allImages = r.images && r.images.length > 0 ? r.images : r.image ? [r.image] : [];
+          const imageCount = allImages.length;
+          
+          m.bindPopup(`
+            <div style="text-align: center; min-width: 200px;">
+              <img src="${userPic}" alt="${userName}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 8px;" />
+              <br>
+              <b>${r.title}</b><br>
+              <b>Reported by:</b> ${userName}<br>
+              <b>Status:</b> ${r.status}<br>
+              <b>Location:</b> ${r.location}<br>
+              ${imageCount > 0 ? `<b>Images:</b> ${imageCount}` : ''}
+            </div>
+          `);
+        } catch (error) {
+          console.error(`Failed to add marker for report ${r._id}:`, error);
+        }
       }
     });
-  }, [reports, customPin]);
+  }, [reports, customPin, defaultProfilePic]);
 
   useEffect(() => {
     if (!modalOpen || modalMapRef.current) return;
 
-    const modalMap = L.map("modal-map").setView([14.8292, 120.2828], 13);
-    modalMapRef.current = modalMap;
+    // ✅ Wait for modal map element
+    const modalMapElement = document.getElementById("modal-map");
+    if (!modalMapElement) {
+      console.warn('Modal map element not found yet');
+      return;
+    }
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-    }).addTo(modalMap);
+    try {
+      const modalMap = L.map("modal-map").setView([14.8292, 120.2828], 13);
+      modalMapRef.current = modalMap;
 
-    modalMap.on("click", async (e: L.LeafletMouseEvent) => {
-      const { lat, lng } = e.latlng;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(modalMap);
 
-      if (modalMarkerRef.current) {
-        modalMarkerRef.current.setLatLng([lat, lng]);
-      } else {
-        modalMarkerRef.current = L.marker([lat, lng], {
-          icon: customPin,
-        }).addTo(modalMap);
-      }
+      modalMap.on("click", async (e: L.LeafletMouseEvent) => {
+        const { lat, lng } = e.latlng;
 
-      (document.getElementById("latitude") as HTMLInputElement).value =
-        lat.toString();
-      (document.getElementById("longitude") as HTMLInputElement).value =
-        lng.toString();
+        if (modalMarkerRef.current) {
+          modalMarkerRef.current.setLatLng([lat, lng]);
+        } else {
+          modalMarkerRef.current = L.marker([lat, lng], {
+            icon: customPin,
+          }).addTo(modalMap);
+        }
 
-      const address = await getAddressFromCoords(lat, lng);
-      (document.getElementById("address") as HTMLInputElement).value =
-        address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        (document.getElementById("latitude") as HTMLInputElement).value =
+          lat.toString();
+        (document.getElementById("longitude") as HTMLInputElement).value =
+          lng.toString();
 
-      setReportForm((prev) => ({
-        ...prev,
-        address: address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-        latitude: lat.toString(),
-        longitude: lng.toString(),
-      }));
-    });
+        const address = await getAddressFromCoords(lat, lng);
+        (document.getElementById("address") as HTMLInputElement).value =
+          address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-    setTimeout(() => modalMap.invalidateSize(), 200);
-  }, [modalOpen]);
+        setReportForm((prev) => ({
+          ...prev,
+          address: address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          latitude: lat.toString(),
+          longitude: lng.toString(),
+        }));
+      });
+
+      // ✅ Wait for modal map to be ready
+      modalMap.whenReady(() => {
+        console.log('✅ Modal map is ready');
+        setTimeout(() => {
+          try {
+            modalMap.invalidateSize();
+          } catch (e) {
+            console.error('Error invalidating modal map:', e);
+          }
+        }, 200);
+      });
+    } catch (error) {
+      console.error('Failed to initialize modal map:', error);
+    }
+  }, [modalOpen, customPin]);
 
   async function getAddressFromCoords(
     lat: number,
