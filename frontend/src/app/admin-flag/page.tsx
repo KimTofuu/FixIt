@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 import Head from "next/head";
 import Image from "next/image";
 import styles from "./admin-flag.module.css";
+import AdminNavbar from "@/components/AdminNavbar";
 
 interface User {
   _id: string;
@@ -52,7 +53,7 @@ export default function AdminFlagPage() {
   const [selectedReport, setSelectedReport] = useState<FlaggedReport | null>(null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [filterReason, setFilterReason] = useState<string>("all");
-  const [menuOpen, setMenuOpen] = useState(false);
+  
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -60,7 +61,6 @@ export default function AdminFlagPage() {
   const [currentReportImages, setCurrentReportImages] = useState<string[]>([]);
   
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-  const profilePicUrl = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
   const flagReasons = [
     "Spam or misleading information",
@@ -329,66 +329,13 @@ export default function AdminFlagPage() {
   return (
     <>
       <div className={styles.adminFlagRoot}>
-        <header className={styles.header}>
-          <nav className={styles.adminNav}>
-            <div className={styles.navLeft}>
-              <Image src="/images/Fix-it_logo_3.png" alt="Fixit Logo" className={styles.logo} width={160} height={40} />
-            </div>
-
-            <ul className={`${styles.navListUserSide} ${menuOpen ? styles.open : ""}`}>
-            <li>
-              <a href="/admin-dashboard" className={styles.navLink}>Dashboard</a>
-            </li>
-            <li>
-              <a href="/admin-map" className={styles.navLink}>Map</a>
-            </li>
-            <li>
-              <a href="/admin-reports" className={styles.navLink}>Reports</a>
-            </li>
-            <li>
-              <a href="/admin-users" className={styles.navLink}>Users</a>
-            </li>
-            <li className={styles.activeNavItem} >
-              <a href="/admin-flag" className={styles.navLink}>Flagged</a>
-            </li>
-            <li>
-              <a href="/admin-profile" className={styles.adminProfileLink}>
-                <img
-                  src={profilePicUrl}
-                  alt="Admin Profile"
-                  className={styles.adminProfilePic}
-                />
-              </a>
-            </li>
-          </ul>
-          </nav>
-        </header>
+        <AdminNavbar active="flag" />
 
         <div className={styles.flagPage}>
           <main className={styles.mainContainer}>
             <div className={styles.contentCard}>
-              <div className={styles.pageHeader}> {/* Changed from .header to .pageHeader */}
-                <div>
-                  <h1 className={styles.pageTitle}>
-                    <i className="fa-solid fa-flag" style={{ marginRight: "12px", color: "#ef4444" }}></i>
-                    Flagged Reports
-                  </h1>
-                  <p className={styles.subtitle}>
-                    Review and manage reports flagged by the community
-                  </p>
-                </div>
-                <div className={styles.stats}>
-                  <div className={styles.statCard}>
-                    <i className="fa-solid fa-flag"></i>
-                    <div>
-                      <div className={styles.statNumber}>{flaggedReports.length}</div>
-                      <div className={styles.statLabel}>Flagged Reports</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className={styles.filterSection}>
+              <div className={styles.pageHeader}> 
+                 <div className={styles.filterSection}>
                 <label htmlFor="reasonFilter" className={styles.filterLabel}>
                   Filter by reason:
                 </label>
@@ -410,6 +357,16 @@ export default function AdminFlagPage() {
                     );
                   })}
                 </select>
+              </div>
+                <div className={styles.stats}>
+                  <div className={styles.statCard}>
+                    <i className="fa-solid fa-flag"></i>
+                    <div>
+                      <div className={styles.statNumber}>{flaggedReports.length}</div>
+                      <div className={styles.statLabel}>Flagged Reports</div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className={styles.reportList}>

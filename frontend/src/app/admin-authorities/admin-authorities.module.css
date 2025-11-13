@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+
+.pageRoot {
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --muted: #6b7280;
+  --ink: #0b1220;
+  --accent: #2563eb;
+  --radius: 12px;
+  --shadow: 0 8px 30px rgba(2,6,23,0.06);
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.main { margin-left: 12rem; padding: 28px; }
+
+.card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 22px 12px 22px; }
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.title { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+
+.headerActions { display:flex; gap:12px; }
+
+.search { border: 1px solid rgba(2,6,23,0.12); border-radius: 12px; padding: 10px 14px; min-width: 320px; }
+
+.resetBtn {
+  background: #eef2ff;
+  color: #1d4ed8;
+  border: 1px solid rgba(29,78,216,0.2);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
+.listWrap { display:flex; flex-direction:column; gap:26px; }
+
+.categoryBlock { border: 1px solid rgba(2,6,23,0.06); border-radius: 14px; padding: 12px; }
+.categoryHeader { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.categoryTitle { margin: 6px 8px 14px 8px; font-size: 16px; font-weight:700; color:#111827; text-transform: capitalize; }
+.categoryTitleBadge {
+  display:inline-block;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(37,99,235,0.25);
+  box-shadow: 0 1px 0 rgba(2,6,23,0.05);
+  background: linear-gradient(90deg, #2563eb, #06b6d4);
+  color:#ffffff;
+}
+.kebabWrap { position: relative; }
+.kebabButton { display:inline-flex; flex-direction:column; gap:3px; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; border:1px solid rgba(2,6,23,0.08); background:#fff; cursor:pointer; }
+.kebabDot { width:4px; height:4px; background:#374151; border-radius:999px; display:block; }
+.kebabMenu { position:absolute; right:0; top: 38px; background:#fff; border:1px solid rgba(2,6,23,0.08); border-radius:10px; box-shadow: 0 10px 30px rgba(2,6,23,0.12); padding:6px; min-width: 170px; z-index: 10; }
+.kebabItem { display:block; width:100%; text-align:left; background:#fff; border:none; padding:8px 10px; border-radius:8px; font-weight:600; color:#0b1220; }
+.kebabItem:hover { background: rgba(2,6,23,0.05); }
+
+.table { display:grid; gap:8px; }
+.removalBanner { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:10px; background:#fff7ed; color:#9a3412; border:1px solid rgba(154,52,18,0.25); }
+.row { display:grid; grid-template-columns: 1.6fr 1.6fr 1.4fr 0.8fr; align-items:center; gap:12px; padding:10px; border-radius:10px; }
+.rowHead { background: rgba(2,6,23,0.04); font-weight:800; font-size:12px; color:#374151; border:1px solid rgba(2,6,23,0.06); }
+
+.colName, .colDept, .colEmail, .colActions { overflow: hidden; text-overflow: ellipsis; }
+
+.emailInput { width:100%; padding:10px 12px; border:1px solid rgba(2,6,23,0.16); border-radius:10px; }
+.textInput { width:100%; padding:10px 12px; border:1px solid rgba(2,6,23,0.16); border-radius:10px; }
+
+/* Single gray variant applied to all category badges */
+
+.emailValue { color: #111827; }
+
+.actionGroup { display:flex; gap:10px; }
+.btn { border:1px solid rgba(2,6,23,0.18); border-radius:10px; padding:8px 12px; font-weight:800; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(2,6,23,0.08); }
+.btnPrimary { background: linear-gradient(180deg, #10b981, #0ea86f); color:#fff; border-color: rgba(16,185,129,0.35); }
+.btnSecondary { background: #eef2ff; color:#1d4ed8; border-color: rgba(29,78,216,0.35); }
+.btnDangerOutline { background:#fff1f2; color:#b91c1c; border-color: rgba(239,68,68,0.35); }
+
+.empty { color: var(--muted); margin: 18px 8px; }

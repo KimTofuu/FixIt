@@ -5,8 +5,9 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import styles from "./user-map.module.css";
 import Image from "next/image";
+import Link from "next/link";
 import { toast } from "react-toastify";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useLoader } from "@/context/LoaderContext";
 
 interface UserProfile {
@@ -46,6 +47,7 @@ interface Report {
 
 export default function UserMapPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [modalOpen, setModalOpen] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -61,12 +63,35 @@ export default function UserMapPage() {
   const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  // Custom pin icon
-  const customPin = L.icon({
+  // Custom pin icon by status
+  const getIconByStatus = (status?: string) => {
+    const s = (status || "").toLowerCase();
+    let iconUrl = "/images/pin_reported.png"; // default to reported-style
+    if (s.includes("resolve")) {
+      iconUrl = "/images/pin_resolved.png";
+    } else if (s.includes("progress") || s.includes("process")) {
+      // in-progress or processing
+      iconUrl = "/images/pin_inprogress.png";
+    } else if (s.includes("pending") || s.includes("report")) {
+      iconUrl = "/images/pin_reported.png";
+    }
+    return L.icon({
+      iconUrl,
+      // Slightly wider, slightly shorter
+      iconSize: [36, 44],
+      iconAnchor: [18, 44], // bottom-center tip
+      popupAnchor: [0, -40],
+      shadowUrl: "/images/marker-shadow.png",
+      shadowSize: [41, 41],
+    });
+  };
+
+  // Neutral base pin (used for modal selection marker)
+  const basePin = L.icon({
     iconUrl: "/images/pin.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
+    iconSize: [36, 44],
+    iconAnchor: [18, 44],
+    popupAnchor: [0, -40],
     shadowUrl: "/images/marker-shadow.png",
     shadowSize: [41, 41],
   });
@@ -217,7 +242,7 @@ export default function UserMapPage() {
           }
 
           const m = L.marker([lat, lng], {
-            icon: customPin,
+            icon: getIconByStatus(r.status),
           }).addTo(feedMap);
           
           const userName = r.user ? `${r.user.fName} ${r.user.lName}` : 'Anonymous';
@@ -243,7 +268,7 @@ export default function UserMapPage() {
         }
       }
     });
-  }, [reports, customPin, defaultProfilePic]);
+  }, [reports, defaultProfilePic]);
 
   useEffect(() => {
     if (!modalOpen || modalMapRef.current) return;
@@ -270,7 +295,7 @@ export default function UserMapPage() {
           modalMarkerRef.current.setLatLng([lat, lng]);
         } else {
           modalMarkerRef.current = L.marker([lat, lng], {
-            icon: customPin,
+            icon: basePin,
           }).addTo(modalMap);
         }
 
@@ -305,7 +330,7 @@ export default function UserMapPage() {
     } catch (error) {
       console.error('Failed to initialize modal map:', error);
     }
-  }, [modalOpen, customPin]);
+  }, [modalOpen]);
 
   async function getAddressFromCoords(
     lat: number,
@@ -478,12 +503,13 @@ export default function UserMapPage() {
       <header className={styles.overlayNav}>
         <nav className={styles.nav}>
           <div className={styles.brand}>
-            <Image
+              <Image
               src="/images/Fix-it_logo_3.png"
               alt="Fixit Logo"
               className={styles.logo}
               width={160}
-              height={40}
+                height={40}
+                priority
             />
           </div>
 
@@ -500,30 +526,30 @@ export default function UserMapPage() {
             onClick={() => setMenuOpen(false)}
           >
             <li>
-              <a className={styles.navLink} href="/user-map">
+              <Link className={`${styles.navLink} ${pathname === '/user-map' ? styles.active : ''}`} href="/user-map">
                 Map
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.navLink} href="/user-feed">
+              <Link className={`${styles.navLink} ${pathname === '/user-feed' ? styles.active : ''}`} href="/user-feed">
                 Feed
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.navLink} href="/user-myreports">
+              <Link className={`${styles.navLink} ${pathname === '/user-myreports' ? styles.active : ''}`} href="/user-myreports">
                 My Reports
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.profileLink} href="/user-profile">
+              <Link href="/user-profile" className={styles.profileLink}>
                 <img
                   src={profilePicUrl}
                   alt="User Profile"
                   className={styles.profilePic}
                   style={{ 
-                    width: '38px', 
-                    height: '38px', 
-                    borderRadius: '50%',
+                    width: '44px', 
+                    height: '44px', 
+                    borderRadius: '8px',
                     objectFit: 'cover'
                   }}
                   onError={(e) => {
@@ -531,7 +557,7 @@ export default function UserMapPage() {
                     (e.target as HTMLImageElement).src = defaultProfilePic;
                   }}
                 />
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
@@ -566,7 +592,7 @@ export default function UserMapPage() {
         <div id="map" className={styles.fullMap} aria-label="Community map"></div>
 
         <button
-          className={styles.reportBtn}
+          className={`${styles.reportBtn} btn btnPrimary`}
           onClick={() => setModalOpen(true)}
           aria-label="Add report"
         >
@@ -721,7 +747,7 @@ export default function UserMapPage() {
               </div>
 
               <div className={styles.submitRow}>
-                <button type="submit" className={styles.submitBtn}>
+                <button type="submit" className={`${styles.submitBtn} btn btnPrimary`}>
                   Submit Report
                 </button>
               </div>

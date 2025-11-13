@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import styles from "./ProfilePage.module.css";
 import { toast } from "react-toastify";
 
@@ -43,6 +44,7 @@ export default function ProfilePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'profile' | 'reputation'>('profile');
+  const pathname = usePathname();
 
   // Change password modal state
   const [showChangePassModal, setShowChangePassModal] = useState(false);
@@ -526,6 +528,7 @@ export default function ProfilePage() {
               className={styles.logo}
               width={160}
               height={40}
+              priority
             />
           </div>
 
@@ -539,29 +542,35 @@ export default function ProfilePage() {
 
           <ul className={`${styles.navList} ${menuOpen ? styles.open : ""}`}>
             <li>
-              <a className={styles.navLink} href="/user-map">
+              <Link className={`${styles.navLink} ${pathname === '/user-map' ? styles.active : ''}`} href="/user-map">
                 Map
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.navLink} href="/user-feed">
+              <Link className={`${styles.navLink} ${pathname === '/user-feed' ? styles.active : ''}`} href="/user-feed">
                 Feed
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.navLink} href="/user-myreports">
+              <Link className={`${styles.navLink} ${pathname === '/user-myreports' ? styles.active : ''}`} href="/user-myreports">
                 My Reports
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={styles.profileLink} href="/user-profile">
+              <Link href="/user-profile" className={styles.profileLink}>
                 <img
                   id="profilePic"
                   src={profilePicUrl}
                   alt="User Profile"
                   className={styles.profilePic}
+                  style={{ 
+                    width: '44px', 
+                    height: '44px', 
+                    borderRadius: '8px',
+                    objectFit: 'cover'
+                  }}
                 />
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
@@ -679,16 +688,14 @@ export default function ProfilePage() {
                 <h2 className={styles.name}>{profile.fName} {profile.lName}</h2>
                 <p className={styles.email}>{profile.email}</p>
                 
-                {/* Quick reputation badge */}
+                {/* Quick reputation tag (text + icon) */}
                 <div style={{ 
                   display: 'inline-flex', 
                   alignItems: 'center', 
                   gap: '6px',
                   marginTop: '8px',
-                  padding: '4px 12px',
-                  backgroundColor: getLevelColor(profile.reputation?.level || 'Newcomer'),
-                  color: 'white',
-                  borderRadius: '20px',
+                  padding: '0px 2px',
+                  color: getLevelColor(profile.reputation?.level || 'Newcomer'),
                   fontSize: '13px',
                   fontWeight: '600'
                 }}>
@@ -703,7 +710,7 @@ export default function ProfilePage() {
                 {!isEditing && (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className={styles.primary}
+                    className={`btn btnSecondary ${styles.primary}`}
                   >
                     Edit
                   </button>
@@ -711,7 +718,7 @@ export default function ProfilePage() {
                 {isEditing && (
                   <button
                     onClick={handleSave}
-                    className={styles.primaryDark}
+                    className={`btn btnPrimary ${styles.primaryDark}`}
                   >
                     Save
                   </button>
@@ -802,6 +809,7 @@ export default function ProfilePage() {
                       type="button"
                       onClick={handleRequestSmsOtp}
                       disabled={sendingOtp || !profile.contact}
+                      className="btn btnPrimary"
                       style={{
                         padding: "8px 16px",
                         backgroundColor: profile.contact ? "#3b82f6" : "#d1d5db",
@@ -819,13 +827,12 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
-            </div>
-
+      </div>
             <div className={styles.actionsRow}>
               <button
                 type="button"
                 onClick={() => setShowChangePassModal(true)}
-                className={styles.linkButton}
+                className={`btn btnSecondary ${styles.linkButton}`}
               >
                 Change Password
               </button>
@@ -834,7 +841,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setShowLogoutModal(true)}
-                  className={styles.danger}
+                  className={`btn btnDestructive ${styles.danger}`}
                 >
                   Log Out
                 </button>
@@ -1113,14 +1120,14 @@ export default function ProfilePage() {
                     setShowSmsModal(false);
                     setSmsOtp("");
                   }}
-                  className={styles.modalCancel}
+                  className={`btn btnSecondary ${styles.modalCancel}`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={verifyingOtp || smsOtp.length !== 6}
-                  className={styles.modalConfirm}
+                  className={`btn btnPrimary ${styles.modalConfirm}`}
                   style={{
                     opacity: smsOtp.length === 6 ? 1 : 0.5,
                     cursor: smsOtp.length === 6 ? "pointer" : "not-allowed",

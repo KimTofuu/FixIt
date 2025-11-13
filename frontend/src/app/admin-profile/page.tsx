@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { toast } from "react-toastify";
 import styles from "./admin-profile.module.css";
+import AdminNavbar from "@/components/AdminNavbar";
 
 interface ProfileData {
   barangayName: string;
@@ -25,11 +26,10 @@ export default function ProfilePage() {
   });
 
   const [isEditing, setIsEditing] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  const profilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+  
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
   // Fetch admin profile data on mount
@@ -134,19 +134,7 @@ export default function ProfilePage() {
   if (isLoading) {
     return (
       <div className={styles.adminReportsRoot}>
-        <header className={styles.header}>
-          <nav className={styles.adminNav}>
-            <div className={styles.navLeft}>
-              <Image
-                src="/images/Fix-it_logo_3.png"
-                alt="Fixit Logo"
-                className={styles.logo}
-                width={160}
-                height={40}
-              />
-            </div>
-          </nav>
-        </header>
+        <AdminNavbar active="profile" />
         <div className={styles.reportsPage}>
           <main className={styles.mainContainer}>
             <div className={styles.contentCard}>
@@ -160,59 +148,7 @@ export default function ProfilePage() {
 
   return (
     <div className={styles.adminReportsRoot}>
-      <header className={styles.header}>
-        <nav className={styles.adminNav}>
-          <div className={styles.navLeft}>
-            <Image
-              src="/images/Fix-it_logo_3.png"
-              alt="Fixit Logo"
-              className={styles.logo}
-              width={160}
-              height={40}
-            />
-          </div>
-
-          <button
-            className={`${styles.hamburger} ${menuOpen ? styles.open : ""}`}
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle navigation"
-            type="button"
-          >
-            <span className={styles.bar} />
-            <span className={styles.bar} />
-            <span className={styles.bar} />
-          </button>
-
-          <ul className={`${styles.navListUserSide} ${menuOpen ? styles.open : ""}`}>
-            <li>
-              <a href="/admin-dashboard" className={styles.navLink}>Dashboard</a>
-            </li>
-            <li>
-              <a href="/admin-map" className={styles.navLink}>Map</a>
-            </li>
-            <li>
-              <a href="/admin-reports" className={styles.navLink}>Reports</a>
-            </li>
-            <li>
-              <a href="/admin-users" className={styles.navLink}>Users</a>
-            </li>
-            <li>
-              <a href="/admin-flag" className={styles.navLink}>Flagged</a>
-            </li>
-            <li>
-              <a href="/admin-profile" className={styles.adminProfileLink} aria-label="Admin profile">
-                <img
-                  src={profilePic}
-                  alt="Admin Profile"
-                  className={styles.adminProfilePic}
-                  width={36}
-                  height={36}
-                />
-              </a>
-            </li>
-          </ul>
-        </nav>
-      </header>
+      <AdminNavbar active="profile" />
 
       <div className={styles.reportsPage}>
         <main id="profile-page" className={styles.mainContainer}>
@@ -222,7 +158,7 @@ export default function ProfilePage() {
               <div className={styles.profileHeader}>
                 <div className={styles.profileAvatar}>
                   <img
-                    src={profilePic}
+                    src="/images/sample_avatar.png"
                     alt={profile.barangayName}
                     className={styles.profileAvatarImg}
                     width={96}

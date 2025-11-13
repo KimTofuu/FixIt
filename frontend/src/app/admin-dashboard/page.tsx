@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Image from "next/image";
 import styles from "./AdminDashboard.module.css";
+import AdminNavbar from "@/components/AdminNavbar";
 
 type ReportStatus = "awaiting-approval" | "pending" | "in-progress" | "resolved";
 
@@ -43,9 +44,6 @@ export default function AdminDashboardPage() {
   const [issueTypes, setIssueTypes] = useState<IssueTypeVolume[]>([]);
   const [locations, setLocations] = useState<LocationVolume[]>([]);
   const [avgResolutionHours, setAvgResolutionHours] = useState<number>(48.3);
-  const [menuOpen, setMenuOpen] = useState<boolean>(false);
-  const defaultProfilePic = "/images/sample_avatar.png";
-  const profilePicUrl = defaultProfilePic; // Placeholder profile picture URL
 
   // Fetch all reports from backend
   useEffect(() => {
@@ -190,40 +188,7 @@ export default function AdminDashboardPage() {
       </Head>
 
       <div className={styles.adminRoot}>
-        <header className={styles.header}>
-          <nav className={styles.adminNav}>
-            <div className={styles.navLeft}>
-              <Image src="/images/Fix-it_logo_3.png" alt="Fixit Logo" className={styles.logo} width={160} height={40} />
-            </div>
-
-            <ul className={`${styles.navListUserSide} ${menuOpen ? styles.open : ""}`}>
-            <li className={styles.activeNavItem}>
-              <a href="/admin-dashboard" className={styles.navLink}>Dashboard</a>
-            </li>
-            <li>
-              <a href="/admin-map" className={styles.navLink}>Map</a>
-            </li>
-            <li>
-              <a href="/admin-reports" className={styles.navLink}>Reports</a>
-            </li>
-            <li>
-              <a href="/admin-users" className={styles.navLink}>Users</a>
-            </li>
-            <li>
-              <a href="/admin-flag" className={styles.navLink}>Flagged</a>
-            </li>
-            <li>
-              <a href="/admin-profile" className={styles.adminProfileLink}>
-                <img
-                  src={profilePicUrl}
-                  alt="Admin Profile"
-                  className={styles.adminProfilePic}
-                />
-              </a>
-            </li>
-          </ul>
-          </nav>
-        </header>
+        <AdminNavbar active="dashboard" />
 
         <main className={styles.dashboardMain}>
           <div className={styles.grid}>
