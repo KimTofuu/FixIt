@@ -67,6 +67,7 @@ export default function AdminReportsPage() {
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [selectedAuthorityId, setSelectedAuthorityId] = useState<string | null>(null);
   const [selectedAuthorityEmail, setSelectedAuthorityEmail] = useState<string>("");
+  const [authorities, setAuthorities] = useState<any[]>([]); // Add this state
 
   // Reject modal state
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -306,10 +307,52 @@ export default function AdminReportsPage() {
   }, [lightboxOpen, currentReportImages.length]);
 
   // Authorities are now managed in a shared module and editable via Admin Authorities page
-  const openAuthorityModal = (report: Report) => {
+  const getAuthoritiesForReport = async (report: Report) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/authorities`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        // Filter by category class if needed
+        const categoryMap: Record<string, string> = {
+          'infrastructure': 'Infrastructure',
+          'utilities': 'Utilities',
+          'sanitation': 'Sanitation and Waste',
+          'waste': 'Sanitation and Waste',
+          'environment': 'Environment and Public Spaces',
+          'safety': 'Community and Safety',
+          'community': 'Community and Safety',
+          'government': 'Government / Administrative',
+        };
+        
+        const reportCategory = (report.category ?? "").toLowerCase();
+        const matchedClass = Object.entries(categoryMap).find(([key]) => 
+          reportCategory.includes(key)
+        )?.[1];
+        
+        return matchedClass 
+          ? data.filter((a: any) => a.class === matchedClass)
+          : data.filter((a: any) => a.class === 'Default' || a.class === 'Others');
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching authorities:', error);
+      return [];
+    }
+  };
+
+  const openAuthorityModal = async (report: Report) => {
     setSelectedReport(report);
     setSelectedAuthorityId(null);
     setSelectedAuthorityEmail("");
+    
+    // Fetch authorities from database
+    const fetchedAuthorities = await getAuthoritiesForReport(report);
+    setAuthorities(fetchedAuthorities);
+    
     setAuthorityModalOpen(true);
   };
 
@@ -320,21 +363,21 @@ export default function AdminReportsPage() {
     setAuthorityModalOpen(false);
   };
 
-  const sendReportToAuthority = async (authorityEmail: string) => {
+  const sendReportToAuthority = async (contactEmail: string) => {
     if (!selectedReport) {
       toast.error("No report selected.");
       return;
     }
     try {
       const token = localStorage.getItem("token");
-      const res = await fetch(`${API}/reports/${selectedReport._id}/notify-authority`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/${selectedReport._id}/notify-authority`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          authorityEmail: authorityEmail || verificationEmail,
+          authorityEmail: contactEmail,
           reportId: selectedReport._id,
         }),
       });
@@ -349,11 +392,6 @@ export default function AdminReportsPage() {
       console.error("Error sending to authority:", err);
       toast.error("An error occurred while sending the report.");
     }
-  };
-
-  const getAuthoritiesForReport = (report: Report) => {
-    const category = (report.category ?? "default");
-    return getAuthoritiesForCategory(category);
   };
 
   return (
@@ -654,23 +692,26 @@ export default function AdminReportsPage() {
               <p className={styles.modalReportTitle}>{selectedReport.title}</p>
               <p className={styles.modalReportCategory}>Category: {selectedReport.category ?? "Unspecified"}</p>
               <div className={styles.authorityList}>
-                {getAuthoritiesForReport(selectedReport).map((a) => {
-                  const isSelected = selectedAuthorityId === a.id;
+                {authorities.map((a) => {
+                  const isSelected = selectedAuthorityId === a._id;
                   return (
                     <button
-                      key={a.id}
+                      key={a._id}
                       className={[
                         styles.actionBtn,
                         styles.authorityBtn,
                         isSelected ? styles.authorityBtnSelected : "",
                       ].join(" ")}
                       onClick={() => {
-                        setSelectedAuthorityId(a.id);
-                        setSelectedAuthorityEmail(a.email ?? "");
+                        setSelectedAuthorityId(a._id);
+                        setSelectedAuthorityEmail(a.contactEmail);
                       }}
                       aria-pressed={isSelected}
                     >
-                      {a.name}
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{a.authorityName}</div>
+                        <div style={{ fontSize: '0.85em', opacity: 0.8 }}>{a.department}</div>
+                      </div>
                     </button>
                   );
                 })}

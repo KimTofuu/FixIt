@@ -20,6 +20,8 @@ router.get('/users', authenticateToken, isAdmin, adminController.getAllUsers);
 router.get('/users/stats', authenticateToken, isAdmin, adminController.getUserStats);
 router.get('/users/:userId', authenticateToken, isAdmin, adminController.getUserById);
 
+router.post('/:reportId/notify-authority', authenticateToken, isAdmin, adminController.notifyAuthority);
+
 router.patch('/users/:userId/suspend', authenticateToken, isAdmin, adminController.suspendUser);
 router.patch('/users/:userId/unsuspend', authenticateToken, isAdmin, adminController.unsuspendUser);
 router.get('/users/suspended', authenticateToken, isAdmin, adminController.getSuspendedUsers); // New route
