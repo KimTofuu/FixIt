@@ -3,35 +3,122 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminNavbar from "@/components/AdminNavbar";
 import styles from "./admin-authorities.module.css";
-import {
-  Authority,
-  AuthoritiesByCategory,
-  getAuthoritiesMap,
-  saveAuthoritiesToStorage,
-} from "@/data/authorities";
+
+interface Authority {
+  _id: string;
+  authorityName: string;
+  department: string;
+  contactEmail: string;
+  class?: string;
+}
+
+interface AuthoritiesByCategory {
+  [category: string]: Authority[];
+}
 
 export default function AdminAuthoritiesPage() {
-  const [authorities, setAuthorities] = useState<AuthoritiesByCategory>({});
-  const [editing, setEditing] = useState<Record<string, string>>({}); // key: `${category}|${id}` -> email
+  const [authorities, setAuthorities] = useState<Authority[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
-  const [openMenu, setOpenMenu] = useState<string | null>(null); // category for kebab
-  const [addingFor, setAddingFor] = useState<Record<string, boolean>>({}); // category -> adding row visible
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [addingFor, setAddingFor] = useState<Record<string, boolean>>({});
   const [draftNew, setDraftNew] = useState<Record<string, { name: string; department: string; email: string }>>({});
-  const [removeMode, setRemoveMode] = useState<Record<string, boolean>>({}); // category -> removal mode on
+  const [removeMode, setRemoveMode] = useState<Record<string, boolean>>({});
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
   useEffect(() => {
-    // Load from storage merged with defaults
-    setAuthorities(getAuthoritiesMap());
+    fetchAuthorities();
   }, []);
 
-  const categories = useMemo(() => Object.keys(authorities), [authorities]);
+  const fetchAuthorities = async () => {
+    try {
+      const res = await fetch(`${API_URL}/authorities`);
+      const data = await res.json();
+      setAuthorities(data);
+    } catch (error) {
+      console.error('Error fetching authorities:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Group by class from the Authority model
+  const authoritiesByCategory = useMemo<AuthoritiesByCategory>(() => {
+    const grouped: AuthoritiesByCategory = {};
+    authorities.forEach(auth => {
+      const category = auth.class || 'Others';
+      if (!grouped[category]) grouped[category] = [];
+      grouped[category].push(auth);
+    });
+    return grouped;
+  }, [authorities]);
+
+  const saveEmail = async (category: string, id: string) => {
+    const email = editing[`${category}|${id}`] ?? "";
+    try {
+      const res = await fetch(`${API_URL}/authorities/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactEmail: email.trim() })
+      });
+      if (res.ok) {
+        await fetchAuthorities();
+        cancelEdit(category, id);
+      }
+    } catch (error) {
+      console.error('Error updating authority:', error);
+    }
+  };
+
+  const saveAdd = async (category: string) => {
+    const draft = draftNew[category];
+    if (!draft?.name || !draft?.department) return;
+
+    try {
+      const res = await fetch(`${API_URL}/authorities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authorityName: draft.name.trim(),
+          department: draft.department.trim(),
+          contactEmail: draft.email.trim() || `${draft.name.toLowerCase().replace(/\s+/g, '')}@example.com`,
+          class: category
+        })
+      });
+      if (res.ok) {
+        await fetchAuthorities();
+        cancelAdd(category);
+      }
+    } catch (error) {
+      console.error('Error adding authority:', error);
+    }
+  };
+
+  const removeAuthority = async (category: string, id: string) => {
+    if (!window.confirm("Remove this authority?")) return;
+    
+    try {
+      const res = await fetch(`${API_URL}/authorities/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        await fetchAuthorities();
+      }
+    } catch (error) {
+      console.error('Error removing authority:', error);
+    }
+  };
+
+  const categories = useMemo(() => Object.keys(authoritiesByCategory), [authoritiesByCategory]);
 
   const handleEditChange = (category: string, id: string, value: string) => {
     setEditing((prev) => ({ ...prev, [`${category}|${id}`]: value }));
   };
 
   const startEdit = (category: string, a: Authority) => {
-    setEditing((prev) => ({ ...prev, [`${category}|${a.id}`]: a.email || "" }));
+    setEditing((prev) => ({ ...prev, [`${category}|${a._id}`]: a.contactEmail || "" }));
   };
 
   const cancelEdit = (category: string, id: string) => {
@@ -41,23 +128,6 @@ export default function AdminAuthoritiesPage() {
       return cp;
     });
   };
-
-  const saveEmail = (category: string, id: string) => {
-    const key = `${category}|${id}`;
-    const email = editing[key] ?? "";
-    const next: AuthoritiesByCategory = JSON.parse(JSON.stringify(authorities));
-    const list = next[category] || [];
-    const idx = list.findIndex((x) => x.id === id);
-    if (idx >= 0) {
-      list[idx].email = email.trim();
-      next[category] = list;
-      setAuthorities(next);
-      saveAuthoritiesToStorage(next);
-    }
-    cancelEdit(category, id);
-  };
-
-  // Reset to defaults removed per request
 
   const slugify = (s: string) =>
     s
@@ -80,30 +150,6 @@ export default function AdminAuthoritiesPage() {
     });
   };
 
-  const saveAdd = (category: string) => {
-    const draft = draftNew[category] || { name: "", department: "", email: "" };
-    const name = draft.name.trim();
-    const department = draft.department.trim();
-    const email = draft.email.trim();
-    if (!name || !department) return; // simple guard
-
-    const next: AuthoritiesByCategory = JSON.parse(JSON.stringify(authorities));
-    const list = next[category] || [];
-    // generate unique id
-    const baseId = `${category.slice(0, 3)}-${slugify(name)}`;
-    let id = baseId || `${category.slice(0, 3)}-${Date.now()}`;
-    let i = 1;
-    const existingIds = new Set(list.map((x) => x.id));
-    while (existingIds.has(id)) {
-      id = `${baseId}-${i++}`;
-    }
-    list.push({ id, name, department, email });
-    next[category] = list;
-    setAuthorities(next);
-    saveAuthoritiesToStorage(next);
-    cancelAdd(category);
-  };
-
   const enableRemoveMode = (category: string) => {
     setRemoveMode((p) => ({ ...p, [category]: true }));
     setOpenMenu(null);
@@ -113,34 +159,23 @@ export default function AdminAuthoritiesPage() {
     setRemoveMode((p) => ({ ...p, [category]: false }));
   };
 
-  const removeAuthority = (category: string, id: string) => {
-    if (typeof window !== "undefined") {
-      const ok = window.confirm("Remove this authority?");
-      if (!ok) return;
-    }
-    const next: AuthoritiesByCategory = JSON.parse(JSON.stringify(authorities));
-    const list = next[category] || [];
-    next[category] = list.filter((x) => x.id !== id);
-    setAuthorities(next);
-    saveAuthoritiesToStorage(next);
-  };
-
   const filtered = useMemo(() => {
-    const q = (search || "").toLowerCase().trim();
-    if (!q) return authorities;
+    const q = search.toLowerCase().trim();
+    if (!q) return authoritiesByCategory;
+    
     const out: AuthoritiesByCategory = {};
-    for (const cat of Object.keys(authorities)) {
-      const list = authorities[cat] || [];
-      const flt = list.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.department.toLowerCase().includes(q) ||
-          (a.email || "").toLowerCase().includes(q)
+    Object.keys(authoritiesByCategory).forEach(cat => {
+      const flt = authoritiesByCategory[cat].filter(a =>
+        a.authorityName.toLowerCase().includes(q) ||
+        a.department.toLowerCase().includes(q) ||
+        a.contactEmail.toLowerCase().includes(q)
       );
       if (flt.length) out[cat] = flt;
-    }
+    });
     return out;
-  }, [authorities, search]);
+  }, [authoritiesByCategory, search]);
+
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div className={styles.pageRoot}>
@@ -169,7 +204,7 @@ export default function AdminAuthoritiesPage() {
                   <div className={styles.categoryHeader}>
                     <h2 className={styles.categoryTitle}>
                       <span className={styles.categoryTitleBadge}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                        {cat}
                       </span>
                     </h2>
                     <div className={styles.kebabWrap}>
@@ -246,31 +281,31 @@ export default function AdminAuthoritiesPage() {
                       <div className={styles.colActions}>Actions</div>
                     </div>
                     {(filtered[cat] || []).map((a) => {
-                      const key = `${cat}|${a.id}`;
+                      const key = `${cat}|${a._id}`;
                       const isEditing = key in editing;
                       return (
-                        <div key={a.id} className={styles.row}>
-                          <div className={styles.colName}>{a.name}</div>
+                        <div key={a._id} className={styles.row}>
+                          <div className={styles.colName}>{a.authorityName}</div>
                           <div className={styles.colDept}>{a.department}</div>
                           <div className={styles.colEmail}>
                             {isEditing ? (
                               <input
                                 value={editing[key]}
-                                onChange={(e) => handleEditChange(cat, a.id, e.target.value)}
+                                onChange={(e) => handleEditChange(cat, a._id, e.target.value)}
                                 placeholder="Enter email"
                                 className={styles.emailInput}
                               />)
                               : (
-                                <span className={styles.emailValue}>{a.email || "—"}</span>
+                                <span className={styles.emailValue}>{a.contactEmail || "—"}</span>
                               )}
                           </div>
                           <div className={styles.colActions}>
                             {removeMode[cat] ? (
-                              <button className={`${styles.btn} ${styles.btnDangerOutline}`} onClick={() => removeAuthority(cat, a.id)}>Remove</button>
+                              <button className={`${styles.btn} ${styles.btnDangerOutline}`} onClick={() => removeAuthority(cat, a._id)}>Remove</button>
                             ) : isEditing ? (
                               <div className={styles.actionGroup}>
-                                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => saveEmail(cat, a.id)}>Save</button>
-                                <button className={`${styles.btn} ${styles.btnDangerOutline}`} onClick={() => cancelEdit(cat, a.id)}>Cancel</button>
+                                <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => saveEmail(cat, a._id)}>Save</button>
+                                <button className={`${styles.btn} ${styles.btnDangerOutline}`} onClick={() => cancelEdit(cat, a._id)}>Cancel</button>
                               </div>
                             ) : (
                               <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => startEdit(cat, a)}>Edit</button>
