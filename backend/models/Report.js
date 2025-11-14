@@ -96,7 +96,13 @@ const reportSchema = new mongoose.Schema({
   flagCount: {
     type: Number,
     default: 0
-  }
+  },
+  forwardedTo: [{
+    authorityEmail: String,
+    authorityName: String,
+    forwardedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    forwardedAt: { type: Date, default: Date.now }
+  }],
 }, {
   timestamps: true
 });

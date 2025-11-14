@@ -835,4 +835,179 @@ exports.getSuspendedUsers = async (req, res) => {
   }
 };
 
+exports.notifyAuthority = async (req, res) => {
+  try {
+    const { reportId } = req.params;
+    const { authorityEmail } = req.body;
+    const adminId = req.user.userId;
+
+    console.log(`📧 Admin ${adminId} sending report ${reportId} to authority: ${authorityEmail}`);
+
+    // Find the report with populated user data
+    const report = await Report.findById(reportId)
+      .populate('user', 'fName lName email');
+
+    if (!report) {
+      console.log('❌ Report not found');
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    // Get admin details
+    const admin = await Admin.findById(adminId);
+    
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    // Find authority details
+    const Authority = require('../models/Authority');
+    const authority = await Authority.findOne({ contactEmail: authorityEmail });
+
+    if (!authority) {
+      console.log('⚠️ Authority not found, proceeding with email only');
+    }
+
+    // Prepare report details
+    const reporterName = report.user 
+      ? `${report.user.fName} ${report.user.lName}` 
+      : 'Anonymous User';
+    
+    const reportDetails = {
+      title: report.title,
+      category: report.category || 'Unspecified',
+      location: report.location,
+      description: report.description,
+      status: report.status,
+      reportedBy: reporterName,
+      reportedAt: report.createdAt || report.timestamp,
+      imageUrl: report.images?.[0] || report.imageUrl || report.image || null,
+      reportId: report._id,
+    };
+
+    // Create email content
+    const authorityName = authority ? authority.authorityName : 'Concerned Authority';
+    const emailSubject = `🚨 New Report Forwarded: ${report.title}`;
+    
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .report-card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .label { font-weight: bold; color: #667eea; margin-top: 15px; }
+          .value { margin: 5px 0 15px 0; }
+          .image-container { text-align: center; margin: 20px 0; }
+          .report-image { max-width: 100%; border-radius: 8px; }
+          .badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+          .urgent { background: #ff4444; color: white; }
+          .normal { background: #4CAF50; color: white; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🚨 New Report Forwarded</h1>
+            <p>FixItPH Community Report System</p>
+          </div>
+          
+          <div class="content">
+            <p>Dear ${authorityName},</p>
+            
+            <p>A new community report has been forwarded to your attention by <strong>${admin.barangayName}</strong>.</p>
+            
+            <div class="report-card">
+              <h2 style="margin-top: 0; color: #667eea;">${reportDetails.title}</h2>
+              
+              <span class="badge ${report.isUrgent ? 'urgent' : 'normal'}">
+                ${report.isUrgent ? '🔴 URGENT' : '✅ Normal Priority'}
+              </span>
+              
+              <div class="label">📍 Location:</div>
+              <div class="value">${reportDetails.location}</div>
+              
+              <div class="label">📂 Category:</div>
+              <div class="value">${reportDetails.category}</div>
+              
+              <div class="label">📝 Description:</div>
+              <div class="value">${reportDetails.description}</div>
+              
+              <div class="label">👤 Reported By:</div>
+              <div class="value">${reportDetails.reportedBy}</div>
+              
+              <div class="label">📅 Reported At:</div>
+              <div class="value">${new Date(reportDetails.reportedAt).toLocaleString()}</div>
+              
+              <div class="label">🆔 Report ID:</div>
+              <div class="value">${reportDetails.reportId}</div>
+              
+              ${reportDetails.imageUrl ? `
+                <div class="image-container">
+                  <div class="label">📷 Attached Image:</div>
+                  <img src="${reportDetails.imageUrl}" alt="Report Image" class="report-image" />
+                </div>
+              ` : ''}
+            </div>
+            
+            <p style="margin-top: 30px;">
+              <strong>Action Required:</strong> Please review this report and take appropriate action as per your department's protocols.
+            </p>
+            
+            <div class="footer">
+              <p>This is an automated notification from FixItPH</p>
+              <p>Forwarded by: ${admin.barangayName} (${admin.officialEmail})</p>
+              <p>Contact: ${admin.officialContact || 'N/A'}</p>
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;" />
+              <p style="font-size: 11px; color: #999;">
+                If you believe this report was sent to you in error, please contact the barangay office.
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Send email to authority
+    await sendEmail(authorityEmail, emailSubject, emailHtml);
+    console.log(`✅ Report sent to ${authorityEmail}`);
+
+    // Optional: Update report to track that it was forwarded
+    report.forwardedTo = report.forwardedTo || [];
+    report.forwardedTo.push({
+      authorityEmail,
+      authorityName: authority?.authorityName || 'Unknown Authority',
+      forwardedBy: adminId,
+      forwardedAt: new Date(),
+    });
+    await report.save();
+
+    res.json({
+      message: 'Report successfully sent to authority',
+      sentTo: {
+        email: authorityEmail,
+        authority: authority?.authorityName || 'Unknown Authority',
+        department: authority?.department || 'N/A',
+      },
+      report: {
+        id: report._id,
+        title: report.title,
+        category: report.category,
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Notify authority error:', error);
+    res.status(500).json({ 
+      message: 'Server error while notifying authority',
+      error: error.message 
+    });
+  }
+};
+
 module.exports = exports;
