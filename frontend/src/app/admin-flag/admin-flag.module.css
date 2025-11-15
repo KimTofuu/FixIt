@@ -107,7 +107,10 @@
 
 .mainContainer {
   width: 100%;
-  margin-left: 12rem;
+  max-width: 1200px;
+  margin-left: 11rem;
+  margin-top: 2rem;
+  margin-bottom: -2rem;
 }
 
 /* Content card refined */
@@ -117,6 +120,9 @@
   box-shadow: 0 14px 36px rgba(2,6,23,0.06);
   padding: 28px;
   border: 1px solid rgba(2,6,23,0.04);
+  width: 1300px; /* narrower container including header + list */
+  margin-inline: auto;
+  margin-left: 2rem;
 }
 
 /* Page Header (visual polish) */
@@ -155,32 +161,68 @@
 .statCard {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 18px;
-  background: linear-gradient(90deg, #fff7f7 0%, #fff 100%);
+  gap: 10px;
+  padding: 10px 14px;
+  position: relative;
+  background: linear-gradient(135deg, #fff1f2 0%, #ffffff 55%);
   border-radius: 12px;
   color: #b91c1c;
-  border: 1px solid rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.18);
   min-width: 140px;
+  box-shadow: 0 10px 24px rgba(239,68,68,0.14), 0 4px 12px rgba(2,6,23,0.06);
+  overflow: hidden;
+}
+
+/* soft glow accent */
+.statCard::before {
+  content: "";
+  position: absolute;
+  inset: -40% -40% auto auto;
+  width: 160px;
+  height: 160px;
+  background: radial-gradient(closest-side, rgba(239,68,68,0.18), transparent 70%);
+  transform: translate(32px, -32px);
+  pointer-events: none;
+  animation: pulseGlow 2.6s ease-in-out infinite;
 }
 
 .statCard i {
-  font-size: 26px;
-  opacity: 0.95;
+  font-size: 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(239,68,68,0.28);
 }
 
 .statNumber {
-  font-size: 22px;
-  font-weight: 800;
+  font-size: 24px;
+  font-weight: 900;
   line-height: 1;
   color: #0f172a;
 }
 
 .statLabel {
   font-size: 12px;
-  opacity: 0.9;
+  opacity: 0.95;
   margin-top: 4px;
   color: #6b7280;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statCard::before { animation: none; }
 }
 
 /* Filter section aligned to reports look */
@@ -223,8 +265,16 @@
 .reportList {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+  max-height: 28rem; /* slightly shorter list height */
+  overflow-y: auto;
+  padding-right: 8px;
 }
+
+/* Match admin-reports scrollbar visuals */
+#admin-reportList { max-height: 28rem; overflow-y: auto; padding-right: 8px; }
+#admin-reportList::-webkit-scrollbar { width: 8px; height: 8px; }
+#admin-reportList::-webkit-scrollbar-thumb { background: rgba(2,6,23,0.12); border-radius: 8px; }
 
 /* Flag card body & interactions */
 .flagCard {
@@ -232,13 +282,10 @@
   border: 1px solid rgba(239,68,68,0.06);
   border-radius: 12px;
   padding: 20px;
-  transition: box-shadow 0.18s ease;
+  transition: none; /* remove hover animation from card */
 }
 
-.flagCard:hover {
-  box-shadow: 0 18px 44px rgba(2,6,23,0.06);
-  transform: translateY(-6px);
-}
+.flagCard:hover { box-shadow: none; transform: none; }
 
 .flagCardHeader {
   display: flex;
@@ -492,6 +539,24 @@
   margin-bottom: 8px;
 }
 
+/* New layout to match admin-reports */
+.reportsRow { display: flex; gap: 16px; align-items: flex-start; width: 100%; flex-wrap: wrap; }
+.reportMain { flex: 1 1 420px; min-width: 260px; }
+.reportImage { flex: 0 0 340px; max-width: 340px; align-self: flex-start; display: flex; }
+.reportAvatar { border-radius: 50%; object-fit: cover; }
+.userMetaInline { display: flex; flex-direction: column; gap: 2px; }
+.reportLocation { color: var(--ar-muted); font-size: 0.95rem; margin: 4px 0 8px; display: flex; align-items: center; gap: 8px; }
+
+/* Card-side image gallery, mirroring admin-reports */
+.reportImageGallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; width: 100%; }
+.oneImage { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.twoImages { grid-template-columns: 1fr; grid-template-rows: repeat(2, 1fr); }
+.reportImageItem { position: relative; overflow: hidden; border-radius: 8px; cursor: pointer; transition: transform 0.2s; }
+.reportImageItem:hover { transform: scale(1.02); }
+.reportImageItem img { width: 100%; height: 100%; object-fit: cover; }
+.inlineImage { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; border: 1px solid rgba(0,0,0,0.04); }
+.noImageProvided { width: 100%; padding: 16px; text-align: center; color: #6b7280; border: 1px dashed rgba(15,23,42,0.12); border-radius: 8px; background: #fafafa; }
+
 .reportTag {
   font-size: 13px;
   color: #0f172a;
@@ -570,10 +635,7 @@
   transition: box-shadow 0.18s ease;
 }
 
-.flagCard:hover .flagBadge {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(37,99,235,0.06);
-}
+.flagCard:hover .flagBadge { transform: none; box-shadow: none; }
 
 /* Loading shimmer */
 .loadingShimmer {

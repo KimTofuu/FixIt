@@ -81,8 +81,6 @@ export default function UserMapPage() {
       iconSize: [36, 44],
       iconAnchor: [18, 44], // bottom-center tip
       popupAnchor: [0, -40],
-      shadowUrl: "/images/marker-shadow.png",
-      shadowSize: [41, 41],
     });
   };
 
@@ -92,8 +90,6 @@ export default function UserMapPage() {
     iconSize: [36, 44],
     iconAnchor: [18, 44],
     popupAnchor: [0, -40],
-    shadowUrl: "/images/marker-shadow.png",
-    shadowSize: [41, 41],
   });
 
   const [reportForm, setReportForm] = useState({

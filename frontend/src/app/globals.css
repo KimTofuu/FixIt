@@ -27,19 +27,71 @@ body {
 
 /* Global button system */
 :root {
+  /* spacing scale */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.375rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: clamp(3.5rem, 6vw, 5rem);
+
+  /* layout sizing */
+  --container-sm: min(100%, 32rem);
+  --container-md: min(100%, 42rem);
+  --container-lg: min(100%, 58rem);
+  --container-xl: min(100%, 72rem);
+  --container-xxl: min(100%, 90rem);
+  --page-gutter: clamp(1rem, 4vw, 3rem);
+
+  /* user dashboard layout vars */
+  --user-sidebar: clamp(10.5rem, 18vw, 13.5rem);
+  --user-content-max: 70rem;
+  --user-mobile-nav: 58px;
+  --user-toolbar-height: clamp(3.5rem, 6vw, 4.75rem);
+  --user-surface-bg: #ffffff;
+  --user-card-surface: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+
+  /* radii + shadows */
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --shadow-sm: 0 6px 18px rgba(3, 10, 28, 0.08);
+  --shadow-md: 0 12px 32px rgba(3, 10, 28, 0.12);
+  --shadow-lg: 0 24px 60px rgba(3, 10, 28, 0.18);
+
+  /* button defaults */
   --btn-radius: 10px;
   --btn-font-weight: 700;
   --btn-gap: 8px;
   --btn-pad-y: 10px;
   --btn-pad-x: 14px;
 
+  /* palette */
   --color-primary: #06b6d4; /* teal */
   --color-primary-hover: #0891b2;
+  --color-primary-soft: rgba(6, 182, 212, 0.08);
   --color-secondary-text: #374151;
   --color-secondary-border: #d1d5db;
   --color-secondary-bg: #f9fafb;
   --color-danger: #ef4444;
   --color-danger-hover: #dc2626;
+  --surface-gradient: linear-gradient(180deg, rgba(255,255,255,0.98), #ffffff);
+}
+
+/* breakpoint reference (cannot use vars inside media queries) */
+/* xl: 1440px+, lg: 1200px, md: 1024px, sm: 768px, xs: 640px */
+
+body, main, section, header, footer {
+  max-width: 100%;
+}
+
+img, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
 
 .btn {

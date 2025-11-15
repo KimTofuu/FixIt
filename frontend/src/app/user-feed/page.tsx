@@ -159,6 +159,7 @@ export default function UserFeedPage() {
   });
 
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   const [reports, setReports] = useState<Report[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -192,6 +193,19 @@ export default function UserFeedPage() {
       .toLowerCase()
       .includes(searchTerm.toLowerCase())
   );
+
+  useEffect(() => {
+    if (imagePreviews.length === 0) {
+      if (previewIndex !== 0) {
+        setPreviewIndex(0);
+      }
+      return;
+    }
+
+    if (previewIndex >= imagePreviews.length) {
+      setPreviewIndex(imagePreviews.length - 1);
+    }
+  }, [imagePreviews, previewIndex]);
 
   // Fetch current user profile
   useEffect(() => {
@@ -394,6 +408,39 @@ export default function UserFeedPage() {
     );
   };
 
+  const handlePreviewNavigation = (direction: "next" | "prev") => {
+    if (imagePreviews.length <= 1) return;
+
+    setPreviewIndex((prev) => {
+      const total = imagePreviews.length;
+      if (direction === "next") {
+        return (prev + 1) % total;
+      }
+      return (prev - 1 + total) % total;
+    });
+  };
+
+  const handleRemovePreview = (index: number) => {
+    setReportForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+
+    setImagePreviews((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+
+      let nextIndex = previewIndex;
+      if (index < previewIndex) {
+        nextIndex = Math.max(0, nextIndex - 1);
+      } else if (index === previewIndex) {
+        nextIndex = next.length === 0 ? 0 : Math.min(nextIndex, next.length - 1);
+      }
+
+      setPreviewIndex(nextIndex);
+      return next;
+    });
+  };
+
   const handleReportSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
 
@@ -449,6 +496,7 @@ export default function UserFeedPage() {
         longitude: "",
       });
       setImagePreviews([]); // ✅ Clear previews
+      setPreviewIndex(0);
 
       const refreshRes = await fetch(`${API}/reports`);
       if (refreshRes.ok) {
@@ -1013,52 +1061,80 @@ export default function UserFeedPage() {
                         });
                       });
 
-                      Promise.all(previews).then(setImagePreviews);
+                      Promise.all(previews).then((resolved) => {
+                        setImagePreviews(resolved);
+                        setPreviewIndex(0);
+                      });
                     }}
                   />
                   
-                  {/* ✅ Image Previews Grid */}
-                  <div className={styles.imagePreviewGrid}>
-                    {imagePreviews.slice(0, 4).map((preview, index) => {
-                      const isLastPreview = index === 3 && imagePreviews.length === 5;
-                      
-                      return (
-                        <div key={index} className={styles.previewItem}>
-                          <img 
-                            src={preview} 
-                            alt={`Preview ${index + 1}`}
-                            className={styles.previewImage}
-                            style={isLastPreview ? { filter: 'brightness(0.4)' } : {}}
-                          />
-                          
-                          {isLastPreview && (
-                            <div className={styles.overlayCount}>
-                              +1
-                            </div>
-                          )}
-                          
+                  {/* ✅ Image Preview Carousel */}
+                  <div className={`${styles.imagePreviewGrid} ${imagePreviews.length ? styles.hasImages : ""}`}>
+                    {imagePreviews.length > 0 ? (
+                      <div className={styles.previewFrame}>
+                        {imagePreviews.length > 1 && (
                           <button
                             type="button"
-                            className={styles.removePreviewBtn}
-                            onClick={() => {
-                              const newImages = reportForm.images.filter((_, i) => i !== index);
-                              const newPreviews = imagePreviews.filter((_, i) => i !== index);
-                              setReportForm({ ...reportForm, images: newImages });
-                              setImagePreviews(newPreviews);
-                            }}
-                            aria-label="Remove image"
+                            className={`${styles.previewNav} ${styles.previewNavPrev}`}
+                            onClick={() => handlePreviewNavigation("prev")}
+                            aria-label="Previous image"
                           >
-                            ✖
+                            ‹
                           </button>
+                        )}
+
+                        <div
+                          className={styles.previewSlide}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openLightbox(imagePreviews, previewIndex)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              openLightbox(imagePreviews, previewIndex);
+                            }
+                          }}
+                        >
+                          <img
+                            src={imagePreviews[previewIndex]}
+                            alt={`Preview ${previewIndex + 1}`}
+                            className={styles.previewImage}
+                          />
                         </div>
-                      );
-                    })}
-                    
-                    {imagePreviews.length === 0 && (
+
+                        {imagePreviews.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              className={`${styles.previewNav} ${styles.previewNavNext}`}
+                              onClick={() => handlePreviewNavigation("next")}
+                              aria-label="Next image"
+                            >
+                              ›
+                            </button>
+                            <span className={styles.previewCounter}>
+                              {previewIndex + 1}/{imagePreviews.length}
+                            </span>
+                          </>
+                        )}
+
+                        <button
+                          type="button"
+                          className={styles.removePreviewBtn}
+                          onClick={() => handleRemovePreview(previewIndex)}
+                          aria-label="Remove image"
+                        >
+                          ✖
+                        </button>
+                      </div>
+                    ) : (
                       <div className={styles.uploadPlaceholder}>
-                        <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '8px' }}></i>
+                        <i
+                          className="fa-solid fa-cloud-arrow-up"
+                          style={{ fontSize: "32px", color: "#94a3b8", marginBottom: "8px" }}
+                        ></i>
                         <p>Click to upload images</p>
-                        <p style={{ fontSize: '12px', color: '#64748b' }}>Up to 5 images, 5MB each</p>
+                        <p style={{ fontSize: "12px", color: "#64748b" }}>Up to 5 images, 5MB each</p>
                       </div>
                     )}
                   </div>

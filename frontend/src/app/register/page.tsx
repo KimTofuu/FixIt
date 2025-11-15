@@ -204,160 +204,164 @@ export default function RegisterPage() {
 
       <main className={styles.register}>
         <div className={`${styles.registerContainer} ${styles.enter}`}>
-          <form onSubmit={handleSubmit} autoComplete="off" className={styles.form} noValidate>
-            <div className={styles.row}>
-              <div className={styles.field}>
-                <label className={styles.floatingLabel}>
-                  <input name="fName" type="text" placeholder=" " value={form.fName} onChange={handleChange} required className={styles.input} />
-                  <span className={styles.labelText}>First Name</span>
-                </label>
-              </div>
-              <div className={styles.field}>
-                <label className={styles.floatingLabel}>
-                  <input name="lName" type="text" placeholder=" " value={form.lName} onChange={handleChange} required className={styles.input} />
-                  <span className={styles.labelText}>Last Name</span>
-                </label>
-              </div>
-            </div>
+          <div className={styles.registerLeft} aria-hidden="true" />
 
-            <label className={styles.floatingLabel}>
-              <input
-                name="email"
-                type="email"
-                placeholder=" "
-                value={form.email}
-                onChange={handleChange}
-                required
-                className={styles.input}
-              />
-              <span className={styles.labelText}>Email</span>
-            </label>
-
-            <div className={styles.passwordWrapper}>
-              <label className={styles.floatingLabel} style={{ flex: 1 }}>
-                <input
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder=" "
-                  value={form.password}
-                  onFocus={() => setShowConditions(true)}
-                  onBlur={() => setTimeout(() => setShowConditions(false), 200)}
-                  onChange={handleChange}
-                  required
-                  className={styles.input}
-                />
-                <span className={styles.labelText}>Password</span>
-              </label>
-
-              <button type="button" className={styles.eyeIcon} onClick={() => setShowPassword(!showPassword)} aria-label="toggle password visibility">
-                {showPassword ? "👁️" : "🙈"}
-              </button>
-
-              {showConditions && (
-                <div className={styles.passwordConditions}>
-                  {conditions.map((c) => (
-                    <div key={c.key} className={styles.conditionCard}>
-                      <span className={c.valid ? styles.okDot : styles.badDot} />
-                      {c.text}
-                    </div>
-                  ))}
+          <div className={styles.registerRight}>
+            <form onSubmit={handleSubmit} autoComplete="off" className={styles.form} noValidate>
+              <div className={styles.row}>
+                <div className={styles.field}>
+                  <label className={styles.floatingLabel}>
+                    <input name="fName" type="text" placeholder=" " value={form.fName} onChange={handleChange} required className={styles.input} />
+                    <span className={styles.labelText}>First Name</span>
+                  </label>
                 </div>
-              )}
-            </div>
+                <div className={styles.field}>
+                  <label className={styles.floatingLabel}>
+                    <input name="lName" type="text" placeholder=" " value={form.lName} onChange={handleChange} required className={styles.input} />
+                    <span className={styles.labelText}>Last Name</span>
+                  </label>
+                </div>
+              </div>
 
-            <div className={styles.passwordWrapper}>
-              <label className={styles.floatingLabel} style={{ flex: 1 }}>
+              <label className={styles.floatingLabel}>
                 <input
-                  name="confirmPassword"
-                  type={showConfirm ? "text" : "password"}
+                  name="email"
+                  type="email"
                   placeholder=" "
-                  value={form.confirmPassword}
+                  value={form.email}
                   onChange={handleChange}
-                  onBlur={handleConfirmBlur}
                   required
                   className={styles.input}
                 />
-                <span className={styles.labelText}>Confirm Password</span>
+                <span className={styles.labelText}>Email</span>
               </label>
-              <button type="button" className={styles.eyeIcon} onClick={() => setShowConfirm(!showConfirm)} aria-label="toggle confirm visibility">
-                {showConfirm ? "👁️" : "🙈"}
+
+              <div className={styles.passwordWrapper}>
+                <label className={styles.floatingLabel} style={{ flex: 1 }}>
+                  <input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder=" "
+                    value={form.password}
+                    onFocus={() => setShowConditions(true)}
+                    onBlur={() => setTimeout(() => setShowConditions(false), 200)}
+                    onChange={handleChange}
+                    required
+                    className={styles.input}
+                  />
+                  <span className={styles.labelText}>Password</span>
+                </label>
+
+                <button type="button" className={styles.eyeIcon} onClick={() => setShowPassword(!showPassword)} aria-label="toggle password visibility">
+                  {showPassword ? "👁️" : "🙈"}
+                </button>
+
+                {showConditions && (
+                  <div className={styles.passwordConditions}>
+                    {conditions.map((c) => (
+                      <div key={c.key} className={styles.conditionCard}>
+                        <span className={c.valid ? styles.okDot : styles.badDot} />
+                        {c.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.passwordWrapper}>
+                <label className={styles.floatingLabel} style={{ flex: 1 }}>
+                  <input
+                    name="confirmPassword"
+                    type={showConfirm ? "text" : "password"}
+                    placeholder=" "
+                    value={form.confirmPassword}
+                    onChange={handleChange}
+                    onBlur={handleConfirmBlur}
+                    required
+                    className={styles.input}
+                  />
+                  <span className={styles.labelText}>Confirm Password</span>
+                </label>
+                <button type="button" className={styles.eyeIcon} onClick={() => setShowConfirm(!showConfirm)} aria-label="toggle confirm visibility">
+                  {showConfirm ? "👁️" : "🙈"}
+                </button>
+              </div>
+
+              {passwordError && <p className={styles.errorText}>{passwordError}</p>}
+
+              <div className={styles.row}>
+                <div className={styles.field}>
+                  <label className={styles.floatingLabel}>
+                    <input name="barangay" type="text" placeholder=" " value={form.barangay} onChange={handleChange} required className={styles.input} />
+                    <span className={styles.labelText}>Barangay</span>
+                  </label>
+                </div>
+                <div className={styles.field}>
+                  <label className={styles.floatingLabel}>
+                    <input name="municipality" type="text" placeholder=" " value={form.municipality} onChange={handleChange} required className={styles.input} />
+                    <span className={styles.labelText}>Municipality</span>
+                  </label>
+                </div>
+              </div>
+
+              <label className={styles.floatingLabel}>
+                <input type="tel" id="contact" name="contact" placeholder=" " pattern="[0-9]{10,15}" value={form.contact} onChange={handleChange} required className={styles.input} />
+                <span className={styles.labelText}>Contact number</span>
+              </label>
+
+              <div className={styles.privacyRow}>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name="privacy"
+                    checked={privacyChecked}
+                    onChange={(e) => setPrivacyChecked(e.target.checked)}
+                    required
+                    className={styles.checkbox}
+                    aria-required="true"
+                  />
+                  <span className={styles.checkboxText}>
+                    I agree to the{" "}
+                    <button
+                      type="button"
+                      className={styles.linkButton}
+                      onClick={() => setShowPrivacyModal(true)}
+                      aria-haspopup="dialog"
+                    >
+                      Privacy Policy
+                    </button>
+                  </span>
+                </label>
+              </div>
+
+              <button
+                className={styles.registerBtn}
+                type="submit"
+                disabled={registering || !privacyChecked}
+                aria-disabled={registering || !privacyChecked}
+              >
+                {registering ? "Sending OTP..." : "Register"}
+              </button>
+            </form>
+
+            <div className={styles.socialRow}>
+              <button
+                type="button"
+                className={styles.googleBtn}
+                onClick={redirectToGoogle}
+                aria-label="Continue with Google"
+              >
+                <span className={styles.googleIcon} aria-hidden>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
+                    <path d="M21.6 12.23c0-.68-.06-1.34-.18-1.97H12v3.73h5.48c-.24 1.33-.94 2.46-2 3.22v2.66h3.23c1.88-1.73 2.97-4.28 2.97-7.64z" fill="#4285F4"/>
+                    <path d="M12 22c2.7 0 4.96-.89 6.62-2.42l-3.23-2.66c-.9.6-2.06.96-3.39.96-2.6 0-4.8-1.76-5.59-4.14H2.98v2.6C4.64 19.9 8.04 22 12 22z" fill="#34A853"/>
+                    <path d="M6.41 13.74A6.972 6.972 0 0 1 6 12c0-.62.10-1.22.29-1.75V7.65H2.98A9.998 9.998 0 0 0 1 12c0 1.63.39 3.17 1.07 4.55l4.34-2.81z" fill="#FBBC05"/>
+                    <path d="M12 6.5c1.47 0 2.8.50 3.85 1.49L19.06 5c-1.66-1.18-3.9-1.84-7.06-1.84-3.96 0-7.36 2.10-9.02 5.14l4.34 2.81C7.20 8.26 9.40 6.50 12 6.50z" fill="#EA4335"/>
+                  </svg>
+                </span>
+                <span className={styles.googleText}>Continue with Google</span>
               </button>
             </div>
-
-            {passwordError && <p className={styles.errorText}>{passwordError}</p>}
-
-            <div className={styles.row}>
-              <div className={styles.field}>
-                <label className={styles.floatingLabel}>
-                  <input name="barangay" type="text" placeholder=" " value={form.barangay} onChange={handleChange} required className={styles.input} />
-                  <span className={styles.labelText}>Barangay</span>
-                </label>
-              </div>
-              <div className={styles.field}>
-                <label className={styles.floatingLabel}>
-                  <input name="municipality" type="text" placeholder=" " value={form.municipality} onChange={handleChange} required className={styles.input} />
-                  <span className={styles.labelText}>Municipality</span>
-                </label>
-              </div>
-            </div>
-
-            <label className={styles.floatingLabel}>
-              <input type="tel" id="contact" name="contact" placeholder=" " pattern="[0-9]{10,15}" value={form.contact} onChange={handleChange} required className={styles.input} />
-              <span className={styles.labelText}>Contact number</span>
-            </label>
-
-            <div className={styles.privacyRow}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  name="privacy"
-                  checked={privacyChecked}
-                  onChange={(e) => setPrivacyChecked(e.target.checked)}
-                  required
-                  className={styles.checkbox}
-                  aria-required="true"
-                />
-                <span className={styles.checkboxText}>
-                  I agree to the{" "}
-                  <button
-                    type="button"
-                    className={styles.linkButton}
-                    onClick={() => setShowPrivacyModal(true)}
-                    aria-haspopup="dialog"
-                  >
-                    Privacy Policy
-                  </button>
-                </span>
-              </label>
-            </div>
-
-            <button
-              className={styles.registerBtn}
-              type="submit"
-              disabled={registering || !privacyChecked}
-              aria-disabled={registering || !privacyChecked}
-            >
-              {registering ? "Sending OTP..." : "Register"}
-            </button>
-          </form>
-
-          <div className={styles.socialRow}>
-            <button
-              type="button"
-              className={styles.googleBtn}
-              onClick={redirectToGoogle}
-              aria-label="Continue with Google"
-            >
-              <span className={styles.googleIcon} aria-hidden>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
-                  <path d="M21.6 12.23c0-.68-.06-1.34-.18-1.97H12v3.73h5.48c-.24 1.33-.94 2.46-2 3.22v2.66h3.23c1.88-1.73 2.97-4.28 2.97-7.64z" fill="#4285F4"/>
-                  <path d="M12 22c2.7 0 4.96-.89 6.62-2.42l-3.23-2.66c-.9.6-2.06.96-3.39.96-2.6 0-4.8-1.76-5.59-4.14H2.98v2.6C4.64 19.9 8.04 22 12 22z" fill="#34A853"/>
-                  <path d="M6.41 13.74A6.972 6.972 0 0 1 6 12c0-.62.10-1.22.29-1.75V7.65H2.98A9.998 9.998 0 0 0 1 12c0 1.63.39 3.17 1.07 4.55l4.34-2.81z" fill="#FBBC05"/>
-                  <path d="M12 6.5c1.47 0 2.8.50 3.85 1.49L19.06 5c-1.66-1.18-3.9-1.84-7.06-1.84-3.96 0-7.36 2.10-9.02 5.14l4.34 2.81C7.20 8.26 9.40 6.50 12 6.50z" fill="#EA4335"/>
-                </svg>
-              </span>
-              <span className={styles.googleText}>Continue with Google</span>
-            </button>
           </div>
         </div>
       </main>

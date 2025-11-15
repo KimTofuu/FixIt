@@ -51,6 +51,9 @@ export default function AdminNavbar({ active, profilePicUrl = "/images/sample_av
           <li className={active === "dashboard" ? styles.activeNavItem : undefined}>
             <a href="/admin-dashboard" className={styles.navLink}>Dashboard</a>
           </li>
+          <li className={active === "map" ? styles.activeNavItem : undefined}>
+            <a href="/admin-map" className={styles.navLink}>Maps</a>
+          </li>
           <li className={active === "summary" ? styles.activeNavItem : undefined}>
             <a href="/admin-summary" className={styles.navLink}>Summary</a>
           </li>
@@ -66,19 +69,20 @@ export default function AdminNavbar({ active, profilePicUrl = "/images/sample_av
           <li className={active === "authorities" ? styles.activeNavItem : undefined}>
             <a href="/admin-authorities" className={styles.navLink}>Authorities</a>
           </li>
-          <li className={active === "profile" ? styles.activeNavItem : undefined}>
-            <a href="/admin-profile" className={styles.adminProfileLink}>
-              <Image
-                src={profilePicUrl}
-                alt="Admin Profile"
-                className={styles.adminProfilePic}
-                width={36}
-                height={36}
-                priority={false}
-              />
-            </a>
-          </li>
         </ul>
+
+        <div className={styles.bottomNav}>
+          <a href="/admin-profile" className={`${styles.adminProfileLink} ${active === "profile" ? styles.activeNavItem : ""}`}>
+            <Image
+              src={profilePicUrl}
+              alt="Admin Profile"
+              className={styles.adminProfilePic}
+              width={48}
+              height={48}
+              priority={false}
+            />
+          </a>
+        </div>
       </nav>
     </header>
   );
