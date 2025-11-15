@@ -116,6 +116,13 @@ export default function UserMyReportsPage() {
     return s;
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
+
   // Fetch current user profile
   useEffect(() => {
     const fetchUserProfile = async () => {

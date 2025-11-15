@@ -20,6 +20,7 @@ import {
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useRouter } from 'next/navigation';
 
 // Register Chart.js components
 ChartJS.register(
@@ -49,6 +50,7 @@ interface SummaryData {
 }
 
 export default function AdminSummaryPage() {
+  const router = useRouter();
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -57,6 +59,12 @@ export default function AdminSummaryPage() {
 
   // Navbar state
   
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     const fetchSummary = async () => {

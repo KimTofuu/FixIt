@@ -5,6 +5,7 @@ import Image from "next/image";
 import { toast } from "react-toastify";
 import styles from "./admin-profile.module.css";
 import AdminNavbar from "@/components/AdminNavbar";
+import { useRouter } from "next/navigation";
 
 interface ProfileData {
   barangayName: string;
@@ -16,6 +17,7 @@ interface ProfileData {
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<ProfileData>({
     barangayName: "",
     officialEmail: "",
@@ -31,6 +33,13 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  useEffect(() => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+      }
+    }, [router]);
 
   // Fetch admin profile data on mount
   useEffect(() => {

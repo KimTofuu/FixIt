@@ -97,6 +97,13 @@ export default function AdminFlagPage() {
     );
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
+
   // ✅ This useEffect must be before any conditional returns
   useEffect(() => {
     if (!lightboxOpen) return;
