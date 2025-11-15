@@ -876,6 +876,8 @@ exports.notifyAuthority = async (req, res) => {
       title: report.title,
       category: report.category || 'Unspecified',
       location: report.location,
+      latitude: report.latitude || null,
+      longitude: report.longitude || null,
       description: report.description,
       status: report.status,
       reportedBy: reporterName,
@@ -883,6 +885,11 @@ exports.notifyAuthority = async (req, res) => {
       imageUrl: report.images?.[0] || report.imageUrl || report.image || null,
       reportId: report._id,
     };
+
+    // Create Google Maps link if coordinates are available
+    const mapsLink = (reportDetails.latitude && reportDetails.longitude)
+      ? `https://www.google.com/maps?q=${reportDetails.latitude},${reportDetails.longitude}`
+      : null;
 
     // Create email content
     const authorityName = authority ? authority.authorityName : 'Concerned Authority';
@@ -900,6 +907,7 @@ exports.notifyAuthority = async (req, res) => {
           .report-card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
           .label { font-weight: bold; color: #667eea; margin-top: 15px; }
           .value { margin: 5px 0 15px 0; }
+          .coordinates { background: #f0f4ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
           .image-container { text-align: center; margin: 20px 0; }
           .report-image { max-width: 100%; border-radius: 8px; }
           .badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; }
@@ -907,6 +915,7 @@ exports.notifyAuthority = async (req, res) => {
           .normal { background: #4CAF50; color: white; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
           .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .map-button { display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
         </style>
       </head>
       <body>
@@ -930,6 +939,19 @@ exports.notifyAuthority = async (req, res) => {
               
               <div class="label">📍 Location:</div>
               <div class="value">${reportDetails.location}</div>
+              
+              ${(reportDetails.latitude && reportDetails.longitude) ? `
+                <div class="coordinates">
+                  <div class="label">🌐 GPS Coordinates:</div>
+                  <div class="value">
+                    <strong>Latitude:</strong> ${reportDetails.latitude}<br>
+                    <strong>Longitude:</strong> ${reportDetails.longitude}
+                  </div>
+                  <a href="${mapsLink}" target="_blank" class="map-button">
+                    📍 View on Google Maps
+                  </a>
+                </div>
+              ` : ''}
               
               <div class="label">📂 Category:</div>
               <div class="value">${reportDetails.category}</div>
@@ -998,6 +1020,9 @@ exports.notifyAuthority = async (req, res) => {
         id: report._id,
         title: report.title,
         category: report.category,
+        location: report.location,
+        latitude: reportDetails.latitude,
+        longitude: reportDetails.longitude,
       }
     });
 
