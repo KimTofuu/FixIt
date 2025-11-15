@@ -875,16 +875,32 @@ exports.getSummary = async (req, res) => {
       return res.status(500).json({ message: "Bytez API key not configured" });
     }
 
-    // 1. Fetch all reports from the database
-    const reports = await Report.find({})
-      .select('title description category location createdAt status isUrgent')
-      .lean();
+    // 1. Fetch all active reports AND resolved reports from both collections
+    const [activeReports, resolvedReports] = await Promise.all([
+      Report.find({})
+        .select('title description category location createdAt status isUrgent')
+        .lean(),
+      ResolvedReport.find({})
+        .select('title description category location createdAt resolvedAt isUrgent')
+        .lean()
+    ]);
 
-    if (reports.length === 0) {
+    // Combine both arrays and mark resolved reports
+    const allReports = [
+      ...activeReports.map(r => ({ ...r, isResolved: false })),
+      ...resolvedReports.map(r => ({ ...r, status: 'resolved', isResolved: true }))
+    ];
+
+    console.log(`📊 Found ${activeReports.length} active reports and ${resolvedReports.length} resolved reports`);
+    console.log(`📊 Total reports to summarize: ${allReports.length}`);
+
+    if (allReports.length === 0) {
       return res.json({ 
         success: true,
         aiSummary: "No reports available to summarize.",
         reportCount: 0,
+        activeReportCount: 0,
+        resolvedReportCount: 0,
         urgentCount: 0,
         categories: [],
         locations: [],
@@ -895,58 +911,76 @@ exports.getSummary = async (req, res) => {
       });
     }
 
-    console.log(`📊 Found ${reports.length} reports to summarize`);
-
     // 2. Calculate statistics for frontend with simplified locations
-    const urgentCount = reports.filter(r => r.isUrgent).length;
-    const categories = [...new Set(reports.map(r => r.category).filter(Boolean))];
+    const urgentCount = allReports.filter(r => r.isUrgent).length;
+    const categories = [...new Set(allReports.map(r => r.category).filter(Boolean))];
     
     // ✅ Extract only the first part of the location (before first comma)
-    const simplifiedLocations = reports.map(r => {
+    const simplifiedLocations = allReports.map(r => {
       if (!r.location) return null;
-      // Split by comma and take the first part, then trim whitespace
       return r.location.split(',')[0].trim();
     }).filter(Boolean);
     
     const locations = [...new Set(simplifiedLocations)];
     
-    // Get category counts
+    // Get category counts and status breakdown
     const categoryStats = {};
     const locationStats = {};
+    const statusBreakdown = {
+      'awaiting-approval': 0,
+      'pending': 0,
+      'in-progress': 0,
+      'resolved': 0
+    };
     
-    reports.forEach(report => {
+    allReports.forEach(report => {
       if (report.category) {
         categoryStats[report.category] = (categoryStats[report.category] || 0) + 1;
       }
       if (report.location) {
-        // ✅ Use simplified location for stats
         const simplifiedLocation = report.location.split(',')[0].trim();
         locationStats[simplifiedLocation] = (locationStats[simplifiedLocation] || 0) + 1;
       }
+      if (report.status) {
+        statusBreakdown[report.status] = (statusBreakdown[report.status] || 0) + 1;
+      }
     });
 
-    // 3. Format the reports for AI with simplified locations
-    const reportsText = reports
-      .slice(0, 15) // Reduced to 15 reports for better performance
+    // 3. Format the reports for AI with emphasis on both active and resolved
+    // Prioritize: urgent reports, recent reports, and resolved reports
+    const sortedReports = allReports
+      .sort((a, b) => {
+        // Prioritize urgent reports
+        if (a.isUrgent && !b.isUrgent) return -1;
+        if (!a.isUrgent && b.isUrgent) return 1;
+        // Then by date
+        const dateA = new Date(a.resolvedAt || a.createdAt || 0);
+        const dateB = new Date(b.resolvedAt || b.createdAt || 0);
+        return dateB - dateA;
+      })
+      .slice(0, 20); // Increased to 20 to include more reports
+
+    const reportsText = sortedReports
       .map(r => {
-        // ✅ Use simplified location in AI prompt
-        const simplifiedLocation = r.location ? r.location.split(',')[0].trim() : 'location';
-        return `${r.category || 'Issue'} in ${simplifiedLocation}: ${(r.description || '').substring(0, 80)}...`;
+        const simplifiedLocation = r.location ? r.location.split(',')[0].trim() : 'unknown location';
+        const statusLabel = r.isResolved ? '[RESOLVED]' : `[${r.status?.toUpperCase() || 'ACTIVE'}]`;
+        const urgentLabel = r.isUrgent ? '[URGENT]' : '';
+        return `${urgentLabel}${statusLabel} ${r.category || 'Issue'} in ${simplifiedLocation}: ${(r.description || '').substring(0, 80)}...`;
       })
       .join('. ');
 
-    const prompt = `Summarize these community reports briefly: ${reportsText}. Focus on main issues and locations.`;
+    const prompt = `Summarize these community reports from FixItPH. Include both active and resolved issues. Highlight progress made on resolved reports: ${reportsText}. Focus on main issues, locations, and resolutions.`;
 
     console.log("🤖 Sending request to Bytez AI...");
+    console.log(`📝 Prompt length: ${prompt.length} characters`);
 
-    // 4. ✅ Try models sequentially with delays to respect concurrency limits
+    // 4. ✅ Try models sequentially with delays
     const modelQueue = [
       "facebook/bart-large-cnn",
       "t5-small",
       "gpt2"
     ];
 
-    // Helper function to delay execution
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     let aiSummary = null;
@@ -958,7 +992,6 @@ exports.getSummary = async (req, res) => {
       try {
         console.log(`🔍 Attempting model ${i + 1}/${modelQueue.length}: ${modelName}`);
         
-        // Add delay between requests to respect rate limits
         if (i > 0) {
           console.log(`⏱️ Waiting 3 seconds before next attempt...`);
           await delay(3000);
@@ -969,33 +1002,27 @@ exports.getSummary = async (req, res) => {
 
         console.log(`📦 Model ${modelName} response type:`, typeof result);
 
-        // Check for errors
         if (result && typeof result === 'object' && result.error) {
           console.log(`❌ Model ${modelName} error:`, result.error);
           
-          // If it's a rate limit issue, wait longer and continue
           if (result.error.includes('concurrency') || result.error.includes('rate limit')) {
             console.log(`⏱️ Rate limit detected, waiting 5 seconds...`);
             await delay(5000);
             continue;
           }
           
-          // For other errors, try next model
           continue;
         }
 
-        // Extract summary
         if (typeof result === 'string') {
           aiSummary = result;
         } else if (result && typeof result === 'object') {
           aiSummary = result.output || result.text || result.summary_text || result.generated_text || result.content;
         }
 
-        // Validate summary
         if (aiSummary && aiSummary.trim().length > 0) {
           const summaryLower = aiSummary.toLowerCase();
           
-          // Check for error indicators
           if (summaryLower.includes('upgrade your account') ||
               summaryLower.includes('unauthorized') ||
               summaryLower.includes('rate limit') ||
@@ -1005,7 +1032,6 @@ exports.getSummary = async (req, res) => {
             continue;
           }
 
-          // Success!
           usedModel = modelName;
           console.log(`✅ Successfully generated summary with model: ${modelName}`);
           break;
@@ -1014,7 +1040,6 @@ exports.getSummary = async (req, res) => {
       } catch (modelError) {
         console.log(`❌ Model ${modelName} failed:`, modelError.message);
         
-        // If it's a JSON parse error (HTML response), wait and continue
         if (modelError.message.includes('Unexpected token') || modelError.message.includes('JSON')) {
           console.log(`⏱️ Detected HTML response, waiting 5 seconds before next attempt...`);
           await delay(5000);
@@ -1022,7 +1047,6 @@ exports.getSummary = async (req, res) => {
       }
     }
 
-    // If no AI model succeeded, return error
     if (!aiSummary) {
       return res.status(500).json({ 
         success: false,
@@ -1030,16 +1054,19 @@ exports.getSummary = async (req, res) => {
       });
     }
 
-    // 5. Return the AI summary and stats with simplified locations
+    // 5. Return the AI summary and comprehensive stats
     res.json({ 
       success: true,
       aiSummary: aiSummary.trim(),
-      reportCount: reports.length,
+      reportCount: allReports.length,
+      activeReportCount: activeReports.length,
+      resolvedReportCount: resolvedReports.length,
       urgentCount,
-      categories: categories.slice(0, 5), // Top 5 categories
-      locations: locations.slice(0, 5),   // Top 5 simplified locations
+      statusBreakdown,
+      categories: categories.slice(0, 5),
+      locations: locations.slice(0, 5),
       categoryStats,
-      locationStats, // Now contains simplified locations
+      locationStats,
       modelUsed: usedModel,
       generatedAt: new Date().toISOString()
     });
