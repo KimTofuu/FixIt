@@ -114,7 +114,6 @@
   height: 100%;
   display:flex;
   flex-direction:column;
-  margin-left: 11rem;
   
 }
 
@@ -152,7 +151,7 @@
 /* Floating modifier */
 .floatingStats {
   position: fixed;
-  margin-left: 15rem;
+  margin-left: 10rem;
   top: 10%;
   transform: translateY(-50%);
   z-index: 110;
@@ -194,6 +193,7 @@
   background: linear-gradient(180deg,#eef2ff,#ffffff);
   border: none;
   margin-top: -4.5rem;
+  margin-left: -2rem;
 }
 
 /* Full-page map under header */
@@ -298,6 +298,16 @@
 }
 
 /* Utility placeholders */
+
+/* Ensure only custom Leaflet pin icons show, no default background/shadow */
+:global {
+  .leaflet-marker-icon,
+  .leaflet-marker-shadow {
+    background: none !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+}
 .status_pending { }
 .status_in_progress { }
 .status_resolved { }

@@ -7,12 +7,12 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 13rem;
+  width: var(--user-sidebar, 13rem);
   z-index: 1400;
   display: flex;
   flex-direction: column;
   box-shadow: 6px 0 30px rgba(10,15,40,0.06);
-  background: #ffffff;
+  background: var(--user-surface-bg, #ffffff);
   justify-content: center;
 }
 
@@ -24,7 +24,7 @@
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
-  background: #ffffff; /* solid white/nav background */
+  background: var(--user-surface-bg, #ffffff); /* shared user surface background */
   border-radius: 0 12px 12px 0;
   box-sizing: border-box;
   pointer-events: auto;
@@ -45,7 +45,7 @@
 .navLink:hover { background: rgba(6, 182, 212, 0.12); transform: translateX(4px); color: #0f766e; }
 .navLink.active { background: #00CCCB; color: #ffffff; box-shadow: 0 8px 24px rgba(0, 204, 203, 0.2); }
 
-.profileLink { display:flex; align-items:center; gap:8px; padding:0.4rem; margin-top: 20rem; border-radius:10px; text-decoration:none; color:inherit; }
+.profileLink { display:flex; align-items:center; gap:8px; padding:0.4rem; margin-top: clamp(2.5rem, 18vh, 6rem); border-radius:10px; text-decoration:none; color:inherit; }
 .profilePic { width:44px; height:44px; border-radius:10px; object-fit:cover; box-shadow: 0 6px 22px rgba(2,6,23,0.08); }
 
 /* full-bleed map */
@@ -54,7 +54,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  left: 13rem;
+  left: var(--user-sidebar, 13rem);
   z-index: 0;
   display: block;
   background: #f6f8fb;
@@ -72,12 +72,11 @@
 
 /* report button floats above map (on top-right for better visibility) */
 .reportBtn {
-  /* moved to top-left of the map area and made slightly wider */
   position: fixed;
   top: 1.25rem;
-  left: calc(13rem + 1rem);
+  left: calc(var(--user-sidebar, 13rem) + clamp(1rem, 2vw, 1.5rem));
   z-index: 1500;
-  padding: 1rem 1.6rem; /* wider */
+  padding: 1rem 1.6rem;
   min-width: 140px;
   background: linear-gradient(90deg, #2563eb, #06b6d4);
   color: #fff;
@@ -93,6 +92,76 @@
 }
 .reportBtn:hover { transform: translateY(-3px); box-shadow: 0 14px 38px rgba(37, 99, 235, 0.22); }
 
+/* switch to top nav layout on tablets and smaller */
+@media (max-width: 900px) {
+  .headerWrap {
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    height: auto;
+    z-index: 1600;
+    justify-content: flex-start;
+  }
+  .overlayNav {
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    height: auto;
+    pointer-events: none;
+    justify-content: flex-start;
+  }
+  .nav {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.9rem;
+    border-radius: 0 0 12px 12px;
+    width: 100%;
+    max-width: none;
+    height: var(--user-mobile-nav, 60px);
+    margin-top: 0;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+    gap: 0.75rem;
+  }
+  .navList {
+    display: none;
+    position: absolute;
+    top: calc(var(--user-mobile-nav, 60px) + 0.35rem);
+    right: clamp(1rem, 5vw, 1.5rem);
+    background: var(--user-surface-bg, #ffffff);
+    padding: 0.75rem;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(2,6,23,0.12);
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: min(16rem, calc(100vw - 2rem));
+  }
+  .navList.open { display: flex; }
+  .hamburger { display: inline-flex; z-index: 1550; }
+  .profileLink { margin-top: 0; padding: 0.35rem 0.5rem; }
+  .profilePic { width: 36px; height: 36px; }
+  .fullMapWrap {
+    left: 0;
+    top: var(--user-mobile-nav, 60px);
+    height: calc(100vh - var(--user-mobile-nav, 60px));
+  }
+  .fullMap {
+    height: 100%;
+    min-height: 100%;
+  }
+  .reportBtn {
+    top: calc(var(--user-mobile-nav, 60px) + 0.9rem);
+    right: clamp(1rem, 4vw, 1.5rem);
+    left: auto;
+  }
+}
+
 /* modal backdrop + container */
 .modal {
   position: fixed;
@@ -101,7 +170,7 @@
   align-items: center;
   justify-content: center;
   background: rgba(7, 12, 18, 0.55);
-  z-index: 1600;
+  z-index: 2400;
   padding: 1.25rem;
 }
 
@@ -112,24 +181,28 @@
 
 /* modal card */
 .modalContent {
-  width: 820px;
+  width: clamp(480px, 60vw, 760px);
   max-width: 96%;
   background: linear-gradient(180deg, #ffffff, #fbfdff);
   border-radius: 14px;
-  padding: 1.25rem 1.25rem 1.5rem 1.25rem;
+  padding: clamp(0.85rem, 2vw, 1.15rem);
   box-shadow: 0 30px 60px rgba(3, 12, 23, 0.18);
   position: relative;
-  min-height: 420px;
+  min-height: 360px;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: clamp(0.35rem, 1vw, 0.6rem);
   border: 1px solid rgba(12, 20, 30, 0.04);
   overflow: hidden;
 }
 
 /* modal header */
 .modalTitle {
-  margin: 0; font-family: 'Inter', 'Poppins', sans-serif; font-weight:700; color:#071427; font-size:1.2rem;
+  margin: 0;
+  font-family: 'Inter', 'Poppins', sans-serif;
+  font-weight: 700;
+  color: #071427;
+  font-size: clamp(1.02rem, 2.4vw, 1.18rem);
 }
 
 /* close control */
@@ -152,10 +225,10 @@
 .formGrid {
   display: grid;
   grid-template-columns: 1fr 420px;
-  gap: 1rem;
+  gap: clamp(0.75rem, 2vw, 1rem);
   align-items: start;
   position: relative;
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   padding-bottom: 0;
 }
 
@@ -164,12 +237,12 @@
 
 /* inputs */
 .input, .textarea, .fileInput {
-  width:100%;
-  padding:0.7rem 0.9rem;
+  width: 100%;
+  padding: clamp(0.55rem, 1.8vw, 0.75rem) clamp(0.75rem, 2vw, 0.9rem);
   border-radius: 10px;
   border: 1px solid #e6e9ee;
   background: #ffffff;
-  font-size: 0.95rem;
+  font-size: clamp(0.9rem, 1.8vw, 0.95rem);
   color: #071427;
   outline: none;
   transition: box-shadow 120ms, border-color 120ms;
@@ -179,7 +252,7 @@
   box-shadow: 0 8px 24px rgba(6,95,129,0.06);
   border-color: #06b6d4;
 }
-.textarea { min-height: 150px; resize: vertical; padding-top: 0.9rem; }
+.textarea { min-height: 140px; resize: vertical; padding-top: clamp(0.65rem, 2vw, 0.9rem); }
 
 /* labels */
 .inputLabel { font-size: 0.95rem; color:#344054; font-weight:600; margin-top:0.25rem; font-family:'Poppins',sans-serif; }
@@ -201,14 +274,14 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 0.75rem;
-  padding-top: 0.5rem;
+  margin-top: clamp(0.5rem, 2vw, 0.75rem);
+  padding-top: 0.45rem;
   border-top: 1px dashed rgba(12,20,30,0.04);
 }
 
 /* submit button */
 .submitBtn {
-  padding: 0.72rem 1.1rem;
+  padding: clamp(0.65rem, 2vw, 0.75rem) clamp(1rem, 2.4vw, 1.1rem);
   background: #071427;
   color: #fff;
   border: none;
@@ -216,7 +289,7 @@
   cursor: pointer;
   font-weight: 700;
   transition: box-shadow 120ms ease;
-  min-width: 180px;
+  min-width: 160px;
 }
 .submitBtn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(7,20,35,0.12); }
 
@@ -378,6 +451,16 @@
   margin: 4px 0;
 }
 
+/* Ensure only custom Leaflet pin icons show, no default background/shadow */
+:global {
+  .leaflet-marker-icon,
+  .leaflet-marker-shadow {
+    background: none !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+}
+
 /* responsive rules */
 .urgentToggle {
   display: flex;
@@ -439,13 +522,45 @@
   outline: none;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
 }
-@media (max-width: 1024px) {
-  .formGrid { grid-template-columns: 1fr 340px; }
-  .modalMap { height: 200px; }
-  .modalContent { padding: 1rem; width: 720px; }
+@media (max-width: 1200px) {
+  .modalContent { width: clamp(460px, 54vw, 700px); }
+  .formGrid { grid-template-columns: minmax(0, 1fr) 320px; }
 }
 
-/* Improved modal behavior for tablet and mobile */
+@media (max-width: 1024px) {
+  .modalContent {
+    width: min(540px, 88vw);
+    padding: 0.85rem;
+    max-height: 88vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .modalContent::-webkit-scrollbar {
+    width: 10px;
+  }
+  .modalContent::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.15);
+    border-radius: 999px;
+  }
+  .modalContent::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #2563eb, #06b6d4);
+    border-radius: 999px;
+  }
+  .modalContent {
+    scrollbar-width: thin;
+    scrollbar-color: #2563eb rgba(148, 163, 184, 0.25);
+  }
+  .formGrid { grid-template-columns: minmax(0, 1fr) 300px; gap: 0.7rem; }
+  .modalMap { height: 190px; }
+  .submitBtn { min-width: 0; }
+}
+
+@media (max-width: 900px) {
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   /* revert sidebar to top overlay on small screens */
   .overlayNav {
@@ -453,36 +568,68 @@
     top: 0;
     left: 0;
     right: 0;
-    width: auto;
+    bottom: auto;
+    width: 100%;
     height: auto;
     pointer-events: none;
+    justify-content: flex-start;
+  }
+
+  .headerWrap {
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    width: 100%;
+    height: auto;
+    justify-content: flex-start;
   }
 
   .nav {
     flex-direction: row;
-    padding: 0.5rem 0.75rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.9rem;
     border-radius: 0 0 12px 12px;
+    height: var(--user-mobile-nav, 60px);
+    width: 100%;
+    max-width: none;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+    gap: 0.75rem;
   }
 
-  .fullMapWrap { left: 0; }
+  .fullMapWrap {
+    left: 0;
+    top: var(--user-mobile-nav, 60px);
+    height: calc(100vh - var(--user-mobile-nav, 60px));
+  }
+
+  .fullMap {
+    height: 100%;
+    min-height: 100%;
+  }
 
   .navList {
     display: none;
     position: absolute;
-    top: 56px;
-    right: 12px;
-    background: rgba(255,255,255,0.98);
+    top: calc(var(--user-mobile-nav, 60px) + 0.35rem);
+    right: clamp(1rem, 5vw, 1.5rem);
+    background: var(--user-surface-bg, #ffffff);
     padding: 0.75rem;
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(2,6,23,0.12);
-    flex-direction: row;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: min(16rem, calc(100vw - 2rem));
   }
   .navList.open { display: flex; }
   .hamburger { display: inline-flex; z-index: 1550; }
+  .profileLink { margin-top: 0; padding: 0.35rem 0.5rem; }
+  .profilePic { width: 36px; height: 36px; }
 
   .fullMap { min-height: 100vh; }
-  .reportBtn { right: 1rem; bottom: 1.2rem; }
+  .reportBtn { top: auto; left: auto; right: 1rem; bottom: 1.2rem; }
 
   /* Make modal act as a bottom sheet on small screens */
   .modal {
@@ -568,6 +715,15 @@
 
   .input, .textarea {
     font-size: 0.95rem;
+  }
+
+  .reportBtn {
+    left: 50%;
+    right: auto;
+    bottom: 1rem;
+    width: calc(100% - 2.5rem);
+    min-width: unset;
+    transform: translateX(-50%);
   }
 }
 

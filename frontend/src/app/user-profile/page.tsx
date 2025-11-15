@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import Head from "next/head";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import styles from "./ProfilePage.module.css";
@@ -66,6 +67,8 @@ export default function ProfilePage() {
   // ✅ Badge detail modal state
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -112,6 +115,17 @@ export default function ProfilePage() {
 
     fetchProfile();
   }, [API]);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(target)) {
+        setShowAvatarMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!profile) return;
@@ -394,7 +408,7 @@ export default function ProfilePage() {
     }
   };
 
-  // Get level icon
+  // Get level icon (Emoji)
   const getLevelIcon = (level: string) => {
     switch (level) {
       case 'Newcomer': return '🌱';
@@ -519,6 +533,18 @@ export default function ProfilePage() {
 
   return (
     <div className={styles.page}>
+      <Head>
+        <title>FixIt PH - User Profile</title>
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@300;400;600;700&display=swap"
+          rel="stylesheet"
+        />
+        <script
+          src="https://kit.fontawesome.com/830b39c5c0.js"
+          crossOrigin="anonymous"
+          defer
+        ></script>
+      </Head>
       <header className={styles.headerWrap}>
         <nav className={styles.nav}>
           <div className={styles.brand}>
@@ -537,7 +563,7 @@ export default function ProfilePage() {
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Toggle menu"
           >
-            ☰
+            <i className="fa-solid fa-bars"></i>
           </button>
 
           <ul className={`${styles.navList} ${menuOpen ? styles.open : ""}`}>
@@ -613,65 +639,47 @@ export default function ProfilePage() {
                   height={88}
                   className={styles.largeAvatar}
                 />
-                
-                <div style={{ 
-                  position: 'absolute', 
-                  bottom: '-8px', 
-                  right: '-8px',
-                  display: 'flex',
-                  gap: '6px'
-                }}>
+
+                {/* Kebab menu: trigger + menu */}
+                <div className={styles.avatarMenuWrap} ref={avatarMenuRef}>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingPicture}
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      backgroundColor: '#3b82f6',
-                      color: 'white',
-                      border: '2px solid white',
-                      cursor: uploadingPicture ? 'not-allowed' : 'pointer',
-                      fontSize: '18px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                      transition: 'all 0.2s'
-                    }}
-                    title={uploadingPicture ? "Uploading..." : "Upload picture"}
-                    onMouseOver={(e) => !uploadingPicture && (e.currentTarget.style.transform = 'scale(1.1)')}
-                    onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                    className={styles.avatarMenuButton}
+                    aria-haspopup="true"
+                    aria-expanded={showAvatarMenu}
+                    onClick={() => setShowAvatarMenu((v) => !v)}
+                    title="Profile actions"
                   >
-                    {uploadingPicture ? '...' : '📷'}
+                    <span className={styles.kebabDots} aria-hidden="true">⋮</span>
                   </button>
-                  
-                  {profile?.profilePicture?.url && (
-                    <button
-                      type="button"
-                      onClick={handleDeleteProfilePicture}
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '50%',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        border: '2px solid white',
-                        cursor: 'pointer',
-                        fontSize: '18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Delete picture"
-                      onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.1)')}
-                      onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                    >
-                      🗑️
-                    </button>
+                  {showAvatarMenu && (
+                    <div className={styles.avatarMenu} role="menu">
+                      <button
+                        className={styles.avatarMenuItem}
+                        role="menuitem"
+                        disabled={uploadingPicture}
+                        onClick={() => {
+                          setShowAvatarMenu(false);
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        <i className="fa-solid fa-camera" aria-hidden="true"></i>
+                        {uploadingPicture ? 'Uploading…' : 'Upload picture'}
+                      </button>
+                      {profile?.profilePicture?.url && (
+                        <button
+                          className={`${styles.avatarMenuItem} ${styles.avatarMenuItemDanger}`}
+                          role="menuitem"
+                          onClick={() => {
+                            setShowAvatarMenu(false);
+                            handleDeleteProfilePicture();
+                          }}
+                        >
+                          <i className="fa-solid fa-trash" aria-hidden="true"></i>
+                          Delete picture
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -699,7 +707,9 @@ export default function ProfilePage() {
                   fontSize: '13px',
                   fontWeight: '600'
                 }}>
-                  <span>{getLevelIcon(profile.reputation?.level || 'Newcomer')}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                    {getLevelIcon(profile.reputation?.level || 'Newcomer')}
+                  </span>
                   <span>{profile.reputation?.level || 'Newcomer'}</span>
                   <span>•</span>
                   <span>{profile.reputation?.points || 0} pts</span>
@@ -801,26 +811,15 @@ export default function ProfilePage() {
                     style={{ flex: 1 }}
                   />
                   {profile.contactVerified ? (
-                    <span style={{ color: "#22c55e", fontSize: "14px", fontWeight: 500, whiteSpace: "nowrap" }}>
-                      ✓ Verified
+                    <span style={{ color: "#22c55e", fontSize: "14px", fontWeight: 600, whiteSpace: "nowrap", display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <i className="fa-solid fa-circle-check" aria-hidden="true"></i> Verified
                     </span>
                   ) : (
                     <button
                       type="button"
                       onClick={handleRequestSmsOtp}
                       disabled={sendingOtp || !profile.contact}
-                      className="btn btnPrimary"
-                      style={{
-                        padding: "8px 16px",
-                        backgroundColor: profile.contact ? "#3b82f6" : "#d1d5db",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: profile.contact ? "pointer" : "not-allowed",
-                        fontSize: "14px",
-                        fontWeight: "500",
-                        whiteSpace: "nowrap"
-                      }}
+                      className={styles.verifyBtn}
                     >
                       {sendingOtp ? "Sending..." : "Verify"}
                     </button>
@@ -854,8 +853,10 @@ export default function ProfilePage() {
         {activeTab === 'reputation' && (
           <section className={styles.card}>
             <div className={styles.reputationHeader}>
-              <div className={styles.levelCard}>
-                <div className={styles.levelIcon}>{getLevelIcon(profile.reputation?.level || 'Newcomer')}</div>
+                <div className={styles.levelCard}>
+                <div className={styles.levelIcon}>
+                  {getLevelIcon(profile.reputation?.level || 'Newcomer')}
+                </div>
                 <div>
                   <h3 className={styles.levelTitle}>{profile.reputation?.level || 'Newcomer'}</h3>
                   <p className={styles.levelSubtitle}>{profile.reputation?.points || 0} Reputation Points</p>
@@ -954,7 +955,7 @@ export default function ProfilePage() {
                     })
                 ) : (
                   <p className={styles.noBadges}>
-                    No achievements yet. Start reporting to earn badges! 🎯
+                    No achievements yet. Start reporting to earn badges!
                   </p>
                 )}
               </div>

@@ -369,7 +369,7 @@ export default function AdminFlagPage() {
                 </div>
               </div>
 
-              <div className={styles.reportList}>
+              <div id="admin-reportList" className={styles.reportList}>
                 {isLoading ? (
                   <div className={styles.loadingState}>
                     <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "32px", color: "#3b82f6" }}></i>
@@ -378,115 +378,146 @@ export default function AdminFlagPage() {
                 ) : filteredReports.length > 0 ? (
                   filteredReports.map((report) => (
                     <div className={styles.flagCard} key={report._id}>
-                      <div className={styles.flagCardHeader}>
-                        <div className={styles.reportInfo}>
-                          <h3 className={styles.reportTitle}>{report.title}</h3>
-                          <div className={styles.reportMeta}>
-                            <span className={styles.metaItem}>
-                              <i className="fa-solid fa-user"></i>
-                              {report.user.fName} {report.user.lName}
-                            </span>
-                            <span className={styles.metaItem}>
-                              <i className="fa-solid fa-location-dot"></i>
-                              {report.location}
-                            </span>
-                            <span className={styles.metaItem}>
-                              <i className="fa-solid fa-clock"></i>
-                              {formatTimeAgo(report.createdAt)}
-                            </span>
+                      <div className={styles.reportsRow}>
+                        <div className={styles.reportMain}>
+                          <div className={styles.reportMetaRow}>
+                            <Image
+                              src={
+                                (report.user?.profilePicture?.url as string) ||
+                                "/images/sample_avatar.png"
+                              }
+                              className={styles.reportAvatar}
+                              alt="Avatar"
+                              width={36}
+                              height={36}
+                            />
+                            <div className={styles.userMetaInline}>
+                              <span className={styles.reportAuthor}>
+                                {report.user?.fName && report.user?.lName
+                                  ? `${report.user.fName} ${report.user.lName}`
+                                  : "Unknown User"}
+                              </span>
+                              <span className={styles.reportTime}>{formatTimeAgo(report.createdAt)}</span>
+                            </div>
+                            <span className={styles.reportTag}>{report.category ?? "Unspecified"}</span>
+                            <div className={styles.flagBadge}>
+                              <i className="fa-solid fa-flag"></i>
+                              {report.flagCount} {report.flagCount === 1 ? "Flag" : "Flags"}
+                            </div>
                           </div>
-                        </div>
-                        <div className={styles.flagBadge}>
-                          <i className="fa-solid fa-flag"></i>
-                          {report.flagCount} {report.flagCount === 1 ? "Flag" : "Flags"}
-                        </div>
-                      </div>
 
-                      <p className={styles.reportDescription}>{report.description}</p>
+                          <h3 className={styles.reportTitle}>{report.title}</h3>
+                          <p className={styles.reportLocation}>
+                            <i className="fa-solid fa-location-dot" /> {report.location}
+                          </p>
+                          <p className={styles.reportDescription}>{report.description}</p>
 
-                      {/* ✅ Display multiple images in flag card preview */}
-                      {(() => {
-                        const allImages = report.images && report.images.length > 0 
-                          ? report.images 
-                          : report.image 
-                          ? [report.image] 
-                          : [];
-                        
-                        if (allImages.length > 0) {
-                          return (
-                            <div className={styles.reportImagePreview}>
-                              <img
-                                src={allImages[0]}
-                                alt="Report preview"
-                                className={styles.previewImage}
-                                onClick={() => openLightbox(allImages, 0)}
-                                style={{ cursor: 'pointer' }}
-                              />
-                              {allImages.length > 1 && (
-                                <div className={styles.imageCount}>
-                                  <i className="fa-solid fa-images"></i>
-                                  {allImages.length} images
+                          <div className={styles.flagsList}>
+                            <h4 className={styles.flagsTitle}>Flags</h4>
+                            {report.flags.slice(0, 2).map((flag, index) => (
+                              <div className={styles.flagItem} key={index}>
+                                <div className={styles.flagHeader}>
+                                  <span className={styles.flagUser}>
+                                    <i className="fa-solid fa-user-circle"></i>
+                                    {flag.userId.fName} {flag.userId.lName}
+                                  </span>
+                                  <span className={styles.flagTime}>
+                                    {formatTimeAgo(flag.createdAt)}
+                                  </span>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-
-                      <div className={styles.flagsList}>
-                        <h4 className={styles.flagsTitle}>Flags:</h4>
-                        {report.flags.slice(0, 2).map((flag, index) => (
-                          <div className={styles.flagItem} key={index}>
-                            <div className={styles.flagHeader}>
-                              <span className={styles.flagUser}>
-                                <i className="fa-solid fa-user-circle"></i>
-                                {flag.userId.fName} {flag.userId.lName}
-                              </span>
-                              <span className={styles.flagTime}>
-                                {formatTimeAgo(flag.createdAt)}
-                              </span>
-                            </div>
-                            <div className={styles.flagReason}>
-                              <i className="fa-solid fa-circle-exclamation"></i>
-                              {flag.reason}
-                            </div>
-                            {flag.description && (
-                              <div className={styles.flagDescription}>
-                                "{flag.description}"
+                                <div className={styles.flagReason}>
+                                  <i className="fa-solid fa-circle-exclamation"></i>
+                                  {flag.reason}
+                                </div>
+                                {flag.description && (
+                                  <div className={styles.flagDescription}>
+                                    "{flag.description}"
+                                  </div>
+                                )}
                               </div>
+                            ))}
+                            {report.flags.length > 2 && (
+                              <p className={styles.moreFlagsText}>
+                                +{report.flags.length - 2} more flag{report.flags.length - 2 > 1 ? "s" : ""}
+                              </p>
                             )}
                           </div>
-                        ))}
-                        {report.flags.length > 2 && (
-                          <p className={styles.moreFlagsText}>
-                            +{report.flags.length - 2} more flag{report.flags.length - 2 > 1 ? "s" : ""}
-                          </p>
-                        )}
-                      </div>
 
-                      <div className={styles.cardActions}>
-                        <button
-                          className={styles.viewDetailsBtn}
-                          onClick={() => openDetailsModal(report)}
-                        >
-                          <i className="fa-solid fa-eye"></i>
-                          View Details
-                        </button>
-                        <button
-                          className={styles.dismissAllBtn}
-                          onClick={() => handleDismissAllFlags(report._id)}
-                        >
-                          <i className="fa-solid fa-check"></i>
-                          Dismiss All
-                        </button>
-                        <button
-                          className={styles.removeBtn}
-                          onClick={() => handleRemoveReport(report._id)}
-                        >
-                          <i className="fa-solid fa-trash"></i>
-                          Remove Report
-                        </button>
+                          <div className={styles.cardActions}>
+                            <button
+                              className={styles.viewDetailsBtn}
+                              onClick={() => openDetailsModal(report)}
+                            >
+                              <i className="fa-solid fa-eye"></i>
+                              View Details
+                            </button>
+                            <button
+                              className={styles.dismissAllBtn}
+                              onClick={() => handleDismissAllFlags(report._id)}
+                            >
+                              <i className="fa-solid fa-check"></i>
+                              Dismiss All
+                            </button>
+                            <button
+                              className={styles.removeBtn}
+                              onClick={() => handleRemoveReport(report._id)}
+                            >
+                              <i className="fa-solid fa-trash"></i>
+                              Remove Report
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className={styles.reportImage}>
+                          {(() => {
+                            const allImages = report.images && report.images.length > 0
+                              ? report.images
+                              : report.image
+                              ? [report.image]
+                              : [];
+
+                            if (allImages.length === 0) {
+                              return <div className={styles.noImageProvided}>No image provided</div>;
+                            }
+
+                            const galleryClass = [
+                              styles.reportImageGallery,
+                              allImages.length === 1 ? styles.oneImage : "",
+                              allImages.length === 2 ? styles.twoImages : "",
+                            ].filter(Boolean).join(" ");
+
+                            const displayImages = allImages.slice(0, 4);
+                            const totalImages = allImages.length;
+
+                            return (
+                              <div className={galleryClass}>
+                                {displayImages.map((img, idx) => {
+                                  const isLastImage = idx === 3 && totalImages > 4;
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={styles.reportImageItem}
+                                      onClick={() => openLightbox(allImages, idx)}
+                                      style={{ position: 'relative', cursor: 'pointer' }}
+                                    >
+                                      <img
+                                        src={img}
+                                        alt={`Report Image ${idx + 1}`}
+                                        className={styles.inlineImage}
+                                        onError={(e) => { (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg"; }}
+                                      />
+                                      {isLastImage && (
+                                        <div className={styles.imageOverlay}>
+                                          <span className={styles.overlayText}>+{totalImages - 3}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
                   ))

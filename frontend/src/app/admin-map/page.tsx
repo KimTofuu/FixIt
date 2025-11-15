@@ -9,12 +9,22 @@ import Image from "next/image";
 import AdminNavbar from "@/components/AdminNavbar";
 
 interface Report {
-  id: number;
+  id: string | number;
   title: string;
-  status: "Reported" | "Processing" | "Resolved";
+  status: "Reported" | "Processing" | "Resolved" | string;
   location: string;
-  latitude?: string;
-  longitude?: string;
+  latitude?: string | number;
+  longitude?: string | number;
+  user?: {
+    fName?: string;
+    lName?: string;
+    profilePicture?: {
+      url?: string;
+      public_id?: string;
+    };
+  };
+  images?: string[];
+  image?: string;
 }
 
 type StatusFilter = "Reported" | "Processing" | "Resolved" | "All";
@@ -31,6 +41,7 @@ export default function AdminMapPage() {
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
   
   const mapRef = useRef<L.Map | null>(null);
+  const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
   // Choose pin icon based on report status
   const getIconByStatus = (status?: string) => {
@@ -49,8 +60,6 @@ export default function AdminMapPage() {
       iconSize: [36, 44],
       iconAnchor: [18, 44], // bottom-center
       popupAnchor: [0, -40],
-      shadowUrl: "/images/marker-shadow.png",
-      shadowSize: [41, 41],
     });
   };
 
@@ -83,8 +92,11 @@ export default function AdminMapPage() {
           title: r.title || r.subject || "No title",
           status: normalizeStatus((r as any).status) as Report["status"],
           location: r.location || r.address || "",
-          latitude: r.latitude?.toString?.() || r.lat?.toString?.() || "",
-          longitude: r.longitude?.toString?.() || r.lng?.toString?.() || "",
+          latitude: r.latitude ?? r.lat ?? "",
+          longitude: r.longitude ?? r.lng ?? "",
+          user: r.user || r.reporter || undefined,
+          images: Array.isArray(r.images) ? r.images : undefined,
+          image: typeof r.image === "string" ? r.image : undefined,
         }));
 
         setReports(transformed);
@@ -99,8 +111,11 @@ export default function AdminMapPage() {
                   title: r.title || r.subject || "No title",
                   status: "Resolved",
                   location: r.location || r.address || "",
-                  latitude: r.latitude?.toString?.() || r.lat?.toString?.() || "",
-                  longitude: r.longitude?.toString?.() || r.lng?.toString?.() || "",
+                  latitude: r.latitude ?? r.lat ?? "",
+                  longitude: r.longitude ?? r.lng ?? "",
+                  user: r.user || r.reporter || undefined,
+                  images: Array.isArray(r.images) ? r.images : undefined,
+                  image: typeof r.image === "string" ? r.image : undefined,
                 }))
               : [];
             setResolvedReports(resolvedTransformed);
@@ -159,16 +174,32 @@ export default function AdminMapPage() {
     }
 
     reportsToShow.forEach((report: Report) => {
-      if (report.latitude && report.longitude) {
-        const lat = parseFloat(report.latitude as string);
-        const lng = parseFloat(report.longitude as string);
+      if (report.latitude != null && report.longitude != null) {
+        const lat = parseFloat(String(report.latitude));
+        const lng = parseFloat(String(report.longitude));
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
         const marker = L.marker([lat, lng], { icon: getIconByStatus(report.status) }).addTo(map);
+
+        const userName = report.user ? `${report.user.fName ?? ""} ${report.user.lName ?? ""}`.trim() || "Anonymous" : "Anonymous";
+        const userPic = report.user?.profilePicture?.url || defaultProfilePic;
+        const allImages = (report.images && report.images.length > 0)
+          ? report.images
+          : report.image
+            ? [report.image]
+            : [];
+        const imageCount = allImages.length;
+
         marker.bindPopup(`
-          <b>${report.title}</b><br>
-          <b>Status:</b> ${report.status}<br>
-          <b>Location:</b> ${report.location}
+          <div style="text-align: center; min-width: 200px;">
+            <img src="${userPic}" alt="${userName}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 8px;" />
+            <br>
+            <b>${report.title}</b><br>
+            <b>Reported by:</b> ${userName}<br>
+            <b>Status:</b> ${report.status}<br>
+            <b>Location:</b> ${report.location}<br>
+            ${imageCount > 0 ? `<b>Images:</b> ${imageCount}` : ''}
+          </div>
         `);
       }
     });
