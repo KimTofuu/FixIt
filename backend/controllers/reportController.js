@@ -2,7 +2,7 @@ const Report = require('../models/Report');
 const User = require('../models/Users');
 const ResolvedReport = require('../models/ResolvedReport'); // 1. Add this import
 const { cloudinary, upload } = require('../config/cloudinary');
-const { sendEmail } = require('../utils/emailService'); 
+const { sendEmailBrevo } = require('../config/emailConfig'); 
 const reputationController = require('./reputationController');
 
 const Bytez = require('bytez.js');
@@ -79,17 +79,17 @@ exports.createReport = async (req, res) => {
 
     // Send email
     try {
-      await sendEmail({
-        to: user.email,
-        subject: `Report Submitted: ${title}`,
-        html: `
+      await sendEmailBrevo(
+        user.email,  // ✅ First parameter: email string
+        `Report Submitted: ${title}`,  // ✅ Second parameter: subject
+        `
           <div style="font-family: Arial, sans-serif;">
             <h2>Report Received! 🎉</h2>
             <p>Hi ${user.fName},</p>
             <p>Your report has been submitted successfully.</p>
           </div>
-        `
-      });
+        `  // ✅ Third parameter: HTML content
+      );
     } catch (emailError) {
       console.error('❌ Email error:', emailError);
     }
@@ -524,11 +524,11 @@ exports.approveReport = async (req, res) => {
           <p>Thank you for helping improve our community!</p>
         </div>
       `;
-      await sendEmail({
-        to: report.user.email,
-        subject: `Your FixItPH Report Has Been Approved (ID: ${report._id})`,
-        html: emailMessage,
-      });
+      await sendEmailBrevo(
+        report.user.email,
+        `Your FixItPH Report Has Been Approved (ID: ${report._id})`,
+        emailMessage,
+      );
       console.log('📧 Approval email sent successfully to:', report.user.email);
     } catch (emailError) {
       console.error('❌ Failed to send approval email:', emailError);
@@ -575,11 +575,11 @@ exports.rejectReport = async (req, res) => {
           <p>Thank you for your understanding.</p>
         </div>
       `;
-      await sendEmail({
-        to: userInfo.email,
-        subject: `Your FixItPH Report Was Not Approved (ID: ${reportId})`,
-        html: emailMessage,
-      });
+      await sendEmailBrevo(
+        userInfo.email,
+        `Your FixItPH Report Was Not Approved (ID: ${reportId})`,
+        emailMessage,
+      );
       console.log('📧 Rejection email sent successfully to:', userInfo.email);
     } catch (emailError) {
       console.error('❌ Failed to send rejection email:', emailError);
@@ -729,11 +729,11 @@ exports.flagReport = async (req, res) => {
           </div>
         `;
 
-        await sendEmail({
-          to: report.user.email,
-          subject: `⚠️ Your FixItPH Report Has Been Flagged (ID: ${report._id})`,
-          html: emailMessage,
-        });
+        await sendEmailBrevo(
+          report.user.email,
+          `⚠️ Your FixItPH Report Has Been Flagged (ID: ${report._id})`,
+          emailMessage,
+        );
 
         console.log(`📧 Flag notification email sent to ${report.user.email}`);
       } catch (emailError) {
@@ -774,8 +774,8 @@ exports.flagReport = async (req, res) => {
           </div>
         `;
 
-        await sendEmail({
-          to: adminEmail,
+        await sendEmailBrevo({
+          adminEmail,
           subject: `⚠️ Urgent: Report ${report._id} Has ${report.flagCount} Flags`,
           html: adminEmailMessage,
         });

@@ -5,7 +5,7 @@ const cloudinary = require("../config/cloudinary");
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const smsService = require('../config/smsService');
-const { sendEmail, sendOtpEmail, generateOtp } = require('../utils/emailService');
+const { sendEmailBrevo, sendOtpEmail, generateOtp } = require('../config/emailConfig');
 const SuspendedUser = require('../models/Suspended');
 
 const emailOtpStore = new Map();

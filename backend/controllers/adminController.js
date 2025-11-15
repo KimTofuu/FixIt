@@ -3,7 +3,7 @@ const Admin = require('../models/Admins');
 const jwt = require('jsonwebtoken');
 const Report = require('../models/Report');
 const User = require('../models/Users'); // Add this
-const { sendEmail, emailTemplates } = require('../config/emailConfig');
+const { sendEmailBrevo, emailTemplates } = require('../config/emailConfig');
 const SuspendedUser = require('../models/Suspended'); 
 
 // --- Admin Registration ---
@@ -178,74 +178,75 @@ exports.updateProfile = async (req, res) => {
 exports.deleteFlaggedReport = async (req, res) => {
   try {
     const { reportId } = req.params;
-    const { reason } = req.body; // Get reason from request body
-    const adminId = req.user.userId;
+    const { reason } = req.body; // ✅ Made optional - no validation
 
-    console.log(`🗑️ Admin ${adminId} attempting to delete report ${reportId}`);
-
-    // Populate both user and flags.userId to get email addresses
-    const report = await Report.findById(reportId)
-      .populate('user', 'fName lName email')
-      .populate('flags.userId', 'fName lName email');
+    const report = await Report.findById(reportId).populate('user', 'fName lName email');
     
     if (!report) {
-      console.log('❌ Report not found');
       return res.status(404).json({ message: 'Report not found' });
     }
 
-    // Store data before deletion
-    const reportOwner = report.user;
     const reportTitle = report.title;
-    const flaggers = report.flags || [];
-    const removalReason = reason || 'This report violated our community guidelines and was flagged multiple times by community members.';
-
-    console.log(`📋 Deleting report: "${reportTitle}" by user ${reportOwner.fName} ${reportOwner.lName}`);
-    console.log(`🚩 Flag count: ${report.flagCount || 0}`);
-
-    // Delete the report
-    await Report.findByIdAndDelete(reportId);
-    console.log(`✅ Report ${reportId} deleted successfully by admin ${adminId}`);
+    const reportOwner = report.user;
+    const ownerName = reportOwner ? `${reportOwner.fName} ${reportOwner.lName}` : 'User';
+    
+    // ✅ Use default reason if not provided
+    const removalReason = reason || 'This report was flagged by community members and removed by administrators.';
 
     // Send email to report owner
     if (reportOwner && reportOwner.email) {
-      const ownerName = `${reportOwner.fName} ${reportOwner.lName}`;
-      const ownerEmail = emailTemplates.reportRemoved(ownerName, reportTitle, removalReason);
-      
-      console.log(`📧 Sending removal notification to ${reportOwner.email}`);
-      await sendEmail(reportOwner.email, ownerEmail.subject, ownerEmail.html);
+      try {
+        const emailContent = emailTemplates.reportRemoved(ownerName, reportTitle, removalReason);
+        
+        await sendEmailBrevo(
+          reportOwner.email,
+          emailContent.subject,
+          emailContent.html
+        );
+        
+        console.log(`📧 Report removal notification sent to ${reportOwner.email}`);
+      } catch (emailError) {
+        console.error('❌ Failed to send removal notification:', emailError);
+      }
     }
 
     // Send thank you emails to all flaggers
-    const emailPromises = flaggers.map(async (flag) => {
-      if (flag.userId && flag.userId.email) {
-        const flaggerName = `${flag.userId.fName} ${flag.userId.lName}`;
-        const thankYouEmail = emailTemplates.thankFlagger(flaggerName, reportTitle);
-        
-        console.log(`📧 Sending thank you email to ${flag.userId.email}`);
-        return sendEmail(flag.userId.email, thankYouEmail.subject, thankYouEmail.html);
+    if (report.flags && report.flags.length > 0) {
+      for (const flag of report.flags) {
+        try {
+          const flagger = await User.findById(flag.userId).select('fName lName email');
+          
+          if (flagger && flagger.email) {
+            const flaggerName = `${flagger.fName} ${flagger.lName}`;
+            const emailContent = emailTemplates.thankFlagger(flaggerName, reportTitle);
+            
+            await sendEmailBrevo(
+              flagger.email,
+              emailContent.subject,
+              emailContent.html
+            );
+            
+            console.log(`✅ Thank you email sent to flagger: ${flagger.email}`);
+          }
+        } catch (emailError) {
+          console.error('❌ Failed to send thank you email to flagger:', emailError);
+        }
       }
-    });
+    }
 
-    // Wait for all emails to be sent
-    await Promise.all(emailPromises);
-    console.log(`✅ All notification emails sent`);
-
+    // Delete the report
+    await Report.findByIdAndDelete(reportId);
+    
+    console.log(`🗑️ Flagged report ${reportId} deleted successfully`);
+    
     res.json({ 
-      message: 'Flagged report deleted successfully and notifications sent',
-      deletedReport: {
-        id: reportId,
-        title: reportTitle,
-        flagCount: report.flagCount
-      },
-      emailsSent: {
-        owner: reportOwner?.email ? true : false,
-        flaggers: flaggers.filter(f => f.userId?.email).length
-      }
+      message: 'Flagged report deleted successfully',
+      emailsSent: true
     });
 
   } catch (err) {
     console.error('❌ Delete flagged report error:', err);
-    res.status(500).json({ message: 'Server error while deleting report' });
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
@@ -292,21 +293,21 @@ exports.deleteReportAndWarnUser = async (req, res) => {
     }
 
     const userId = report.user._id;
-    const userName = `${report.user.fName} ${report.user.lName}`;
+    const ownerName = `${report.user.fName} ${report.user.lName}`;
 
-    console.log(`⚠️ Admin ${adminId} deleting report and warning user ${userName}`);
+    console.log(`⚠️ Admin ${adminId} deleting report and warning user ${ownerName}`);
 
     // Delete the report
     await Report.findByIdAndDelete(reportId);
 
-    console.log(`✅ Report deleted and user ${userName} warned: ${warningMessage || 'No message'}`);
+    console.log(`✅ Report deleted and user ${ownerName} warned: ${warningMessage || 'No message'}`);
 
     res.json({ 
       message: 'Report deleted and user warned successfully',
       deletedReport: {
         id: reportId,
         title: report.title,
-        user: userName
+        user: ownerName
       },
       warning: warningMessage || 'Generic warning issued'
     });
@@ -537,9 +538,9 @@ exports.suspendUser = async (req, res) => {
     // Send suspension email
     if (user.email) {
       try {
-        const userName = `${user.fName} ${user.lName}`;
-        const suspensionEmail = emailTemplates.userSuspended(userName, reason);
-        await sendEmail(user.email, suspensionEmail.subject, suspensionEmail.html);
+        const ownerName = `${user.fName} ${user.lName}`;
+        const suspensionEmail = emailTemplates.userSuspended(ownerName, reason);
+        await sendEmailBrevo(user.email, suspensionEmail.subject, suspensionEmail.html);
         console.log(`📧 Suspension notification sent to ${user.email}`);
       } catch (emailError) {
         console.error('⚠️ Failed to send suspension email:', emailError);
@@ -704,9 +705,9 @@ exports.unsuspendUser = async (req, res) => {
     // Send unsuspension email
     if (finalUser.email) {
       try {
-        const userName = `${finalUser.fName} ${finalUser.lName}`;
+        const ownerName = `${finalUser.fName} ${finalUser.lName}`;
         const unsuspensionEmail = emailTemplates.userUnsuspended(userName);
-        await sendEmail(finalUser.email, unsuspensionEmail.subject, unsuspensionEmail.html);
+        await sendEmailBrevo(finalUser.email, unsuspensionEmail.subject, unsuspensionEmail.html);
         console.log(`📧 Unsuspension notification sent to ${finalUser.email}`);
       } catch (emailError) {
         console.error('⚠️ Failed to send unsuspension email:', emailError);
