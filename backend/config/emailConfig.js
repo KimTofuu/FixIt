@@ -1,12 +1,16 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// Your verified sender email
-const FROM_EMAIL = process.env.FROM_EMAIL || 'onboarding@resend.dev'; // Use resend.dev for testing
+// Create transporter using Gmail SMTP
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 /**
- * Send email using Resend
+ * Send email using Nodemailer
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
  * @param {string} html - HTML content
@@ -15,27 +19,23 @@ const sendEmail = async (to, subject, html) => {
   try {
     console.log(`📧 Sending email to ${to}...`);
     
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: [to],
+    const mailOptions = {
+      from: `"FixItPH" <${process.env.EMAIL_USER}>`,
+      to: to,
       subject: subject,
       html: html,
-    });
+    };
 
-    if (error) {
-      console.error('❌ Resend error:', error);
-      throw new Error(error.message);
-    }
-
-    console.log('✅ Email sent successfully:', data);
-    return data;
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Email sent successfully:', info.messageId);
+    return info;
   } catch (error) {
     console.error('❌ Failed to send email:', error);
     throw error;
   }
 };
 
-// Email templates (keep your existing templates)
+// Email templates
 const emailTemplates = {
   verificationOTP: (otp, userName) => `
     <!DOCTYPE html>
