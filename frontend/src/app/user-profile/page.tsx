@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import styles from "./ProfilePage.module.css";
 import { toast } from "react-toastify";
+import { useRouter } from "next/navigation";
 
 interface Badge {
   name: string;
@@ -40,6 +41,7 @@ interface ProfileData {
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -72,6 +74,13 @@ export default function ProfilePage() {
 
   const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     const fetchProfile = async () => {

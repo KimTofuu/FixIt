@@ -107,6 +107,13 @@ export default function UserMapPage() {
 
   const [reports, setReports] = useState<Report[]>([]);
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
+
   // Fetch current user profile
   useEffect(() => {
     const fetchUserProfile = async () => {

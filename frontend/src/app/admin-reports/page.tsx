@@ -7,6 +7,7 @@ import Image from "next/image";
 import { toast } from "react-toastify";
 import AdminNavbar from "@/components/AdminNavbar";
 import { getAuthoritiesForCategory } from "@/data/authorities";
+import { useRouter } from "next/navigation";
 
 interface Comment {
   user: string;
@@ -59,6 +60,7 @@ const formatTimeAgo = (timestamp?: string): string => {
 };
 
 export default function AdminReportsPage() {
+  const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<AdminStatusFilter>("awaiting-approval");
@@ -80,6 +82,13 @@ export default function AdminReportsPage() {
 
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const verificationEmail = "johnnabunturan1029384756@gmail.com"; // fallback only
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     const fetchReports = async () => {

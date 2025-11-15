@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminNavbar from "@/components/AdminNavbar";
 import styles from "./admin-authorities.module.css";
+import { useRouter } from "next/navigation";
 
 interface Authority {
   _id: string;
@@ -17,6 +18,7 @@ interface AuthoritiesByCategory {
 }
 
 export default function AdminAuthoritiesPage() {
+  const router = useRouter();
   const [authorities, setAuthorities] = useState<Authority[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Record<string, string>>({});
@@ -27,6 +29,13 @@ export default function AdminAuthoritiesPage() {
   const [removeMode, setRemoveMode] = useState<Record<string, boolean>>({});
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     fetchAuthorities();

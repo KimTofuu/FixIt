@@ -195,6 +195,13 @@ export default function UserFeedPage() {
   );
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
+
+  useEffect(() => {
     if (imagePreviews.length === 0) {
       if (previewIndex !== 0) {
         setPreviewIndex(0);

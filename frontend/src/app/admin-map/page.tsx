@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import styles from "./AdminMap.module.css";
 import Image from "next/image";
 import AdminNavbar from "@/components/AdminNavbar";
+import { useRouter } from "next/navigation";
 
 interface Report {
   id: string | number;
@@ -30,6 +31,7 @@ interface Report {
 type StatusFilter = "Reported" | "Processing" | "Resolved" | "All";
 
 export default function AdminMapPage() {
+  const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
   const [resolvedReports, setResolvedReports] = useState<Report[]>([]);
   const [stats, setStats] = useState({
@@ -62,6 +64,13 @@ export default function AdminMapPage() {
       popupAnchor: [0, -40],
     });
   };
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
 
   useEffect(() => {
     const fetchReports = async () => {

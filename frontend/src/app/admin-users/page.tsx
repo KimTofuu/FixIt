@@ -49,6 +49,13 @@ export default function AdminUserListPage() {
 
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
+
   // Check authentication
   useEffect(() => {
     if (typeof window !== 'undefined') {

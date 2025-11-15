@@ -5,6 +5,7 @@ import Head from "next/head";
 import Image from "next/image";
 import styles from "./AdminDashboard.module.css";
 import AdminNavbar from "@/components/AdminNavbar";
+import { useRouter } from "next/navigation";
 
 type ReportStatus = "awaiting-approval" | "pending" | "in-progress" | "resolved";
 
@@ -33,6 +34,7 @@ interface Report {
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
   const [counts, setCounts] = useState<DashboardCounts>({
     awaiting: 0,
@@ -44,6 +46,13 @@ export default function AdminDashboardPage() {
   const [issueTypes, setIssueTypes] = useState<IssueTypeVolume[]>([]);
   const [locations, setLocations] = useState<LocationVolume[]>([]);
   const [avgResolutionHours, setAvgResolutionHours] = useState<number>(48.3);
+
+  useEffect(() => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+      }
+    }, [router]);
 
   // Fetch all reports from backend
   useEffect(() => {
