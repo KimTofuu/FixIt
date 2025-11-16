@@ -35,6 +35,8 @@ router.post('/getReport', reportController.getReport);
 router.post('/getReportByUser', reportController.getReportByUser);
 router.get('/my', authenticateToken, reportController.getMyReports);
 router.post('/:id/comment', authenticateToken, reportController.addComment);
+router.patch('/:id/comment/:commentId', authenticateToken, reportController.updateComment);
+router.delete('/:id/comment/:commentId', authenticateToken, reportController.deleteComment);
 router.delete('/:id', authenticateToken, reportController.deleteReport);
 router.patch('/:id', authenticateToken, upload.array('images', 5), reportController.updateReport); // ✅ Changed to array
 

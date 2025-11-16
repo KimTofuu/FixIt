@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const EmailOtp = require('../models/EmailOtp');
 const PhoneOtp = require('../models/PhoneOtp');
 const User = require('../models/Users');
-const { sendOtpEmail } = require('../utils/emailService');
+const { sendOtpEmail } = require('../config/emailConfig');
 const { sendSmsOtp } = require('../utils/smsService');
 
 exports.requestOtp = async (req, res) => {

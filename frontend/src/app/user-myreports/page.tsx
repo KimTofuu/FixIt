@@ -31,6 +31,8 @@ interface Report {
 }
 
 interface UserProfile {
+  _id?: string;
+  id?: string;
   fName?: string;
   lName?: string;
   email?: string;
@@ -92,6 +94,7 @@ export default function UserMyReportsPage() {
 
   const [editImagePreviews, setEditImagePreviews] = useState<string[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [addPreviewIndex, setAddPreviewIndex] = useState(0);
 
   const editMapRef = useRef<HTMLDivElement | null>(null);
   const [LRef, setLRef] = useState<any>(null);
@@ -101,6 +104,22 @@ export default function UserMyReportsPage() {
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
   const profilePicUrl = userProfile?.profilePicture?.url || defaultProfilePic;
+
+  const buildBannerStorageKey = (profile?: UserProfile | null) => {
+    if (!profile) return null;
+    const identifier = profile._id || profile.id || profile.email;
+    return identifier ? `profileBannerDismissed:${identifier}` : null;
+  };
+
+  const handleDismissProfileBanner = () => {
+    if (typeof window !== "undefined") {
+      const key = buildBannerStorageKey(userProfile);
+      if (key) {
+        localStorage.setItem(key, "true");
+      }
+    }
+    setShowProfileBanner(false);
+  };
 
   const normalizeStatus = (s?: string): Report["status"] => {
     if (!s) return "Reported";
@@ -134,11 +153,35 @@ export default function UserMyReportsPage() {
         if (res.ok) {
           const data = await res.json();
           console.log("✅ User profile loaded:", data);
-          setUserProfile(data);
 
-          // Check if profile is incomplete
-          const isIncomplete = !data.barangay || !data.municipality || !data.contact;
-          setShowProfileBanner(isIncomplete);
+          const normalizedProfile: UserProfile = {
+            ...data,
+            _id: data._id || data.id,
+            id: data.id,
+          };
+
+          setUserProfile(normalizedProfile);
+
+          const isIncomplete =
+            !normalizedProfile.barangay ||
+            !normalizedProfile.municipality ||
+            !normalizedProfile.contact;
+
+          const dismissalKey = buildBannerStorageKey(normalizedProfile);
+
+          if (!isIncomplete) {
+            setShowProfileBanner(false);
+            if (typeof window !== "undefined" && dismissalKey) {
+              localStorage.removeItem(dismissalKey);
+            }
+          } else {
+            if (typeof window !== "undefined" && dismissalKey) {
+              const dismissed = localStorage.getItem(dismissalKey) === "true";
+              setShowProfileBanner(!dismissed);
+            } else {
+              setShowProfileBanner(true);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to fetch user profile", err);
@@ -235,21 +278,21 @@ export default function UserMyReportsPage() {
   // ✅ Replace handleAddImageChange
   const handleAddImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
+
     if (files.length > 5) {
       toast.error("Maximum 5 images allowed");
       return;
     }
 
-    const invalidFiles = files.filter(file => file.size > 5 * 1024 * 1024);
+    const invalidFiles = files.filter((file) => file.size > 5 * 1024 * 1024);
     if (invalidFiles.length > 0) {
       toast.error("Each image must be less than 5MB");
       return;
     }
 
-    setReportForm({ ...reportForm, images: files });
+    setReportForm((prev) => ({ ...prev, images: files }));
 
-    const previews = files.map(file => {
+    const previews = files.map((file) => {
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -259,15 +302,53 @@ export default function UserMyReportsPage() {
       });
     });
 
-    Promise.all(previews).then(setImagePreviews);
+    Promise.all(previews).then((resolved) => {
+      setImagePreviews(resolved);
+      setAddPreviewIndex(0);
+    });
+  };
+
+  const handleAddPreviewNavigation = (direction: "next" | "prev") => {
+    if (imagePreviews.length <= 1) return;
+
+    setAddPreviewIndex((prev) => {
+      const total = imagePreviews.length;
+      return direction === "next"
+        ? (prev + 1) % total
+        : (prev - 1 + total) % total;
+    });
+  };
+
+  const handleAddPreviewClick = () => {
+    const current = imagePreviews[addPreviewIndex];
+    if (!current) return;
+
+    if (typeof window !== "undefined") {
+      window.open(current, "_blank", "noopener,noreferrer");
+    }
   };
 
   // ✅ Update removeAddImage to handle individual removal
   const removeAddImage = (index: number) => {
-    const newImages = reportForm.images.filter((_, i) => i !== index);
-    const newPreviews = imagePreviews.filter((_, i) => i !== index);
-    setReportForm({ ...reportForm, images: newImages });
-    setImagePreviews(newPreviews);
+    setReportForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+
+    setImagePreviews((prevPreviews) => {
+      const nextPreviews = prevPreviews.filter((_, i) => i !== index);
+
+      setAddPreviewIndex((current) => {
+        if (nextPreviews.length === 0) return 0;
+        if (index < current) return Math.max(0, current - 1);
+        if (index === current) {
+          return Math.min(current, nextPreviews.length - 1);
+        }
+        return current;
+      });
+
+      return nextPreviews;
+    });
   };
 
   const handleAddReportSubmit = async (e: React.FormEvent) => {
@@ -323,6 +404,7 @@ export default function UserMyReportsPage() {
           longitude: "" 
         });
         setImagePreviews([]);
+        setAddPreviewIndex(0);
         setAddModalVisible(false);
       } else {
         const data = await res.json();
@@ -689,7 +771,7 @@ export default function UserMyReportsPage() {
   }, [lightboxOpen, currentReportImages.length]);
 
   return (
-    <div className={styles.pageWrap}>
+    <>
       <header className={styles.headerWrap}>
         <nav className={styles.nav}>
           <div className={styles.brand}>
@@ -704,7 +786,10 @@ export default function UserMyReportsPage() {
             ☰
           </button>
 
-          <ul className={`${styles.navList} ${menuOpen ? styles.open : ""}`}>
+          <ul
+            className={`${styles.navList} ${menuOpen ? styles.open : ""}`}
+            onClick={() => setMenuOpen(false)}
+          >
             <li><Link href="/user-map" className={`${styles.navLink} ${pathname === '/user-map' ? styles.active : ''}`}>Map</Link></li>
             <li><Link href="/user-feed" className={`${styles.navLink} ${pathname === '/user-feed' ? styles.active : ''}`}>Feed</Link></li>
             <li><Link href="/user-myreports" className={`${styles.navLink} ${pathname === '/user-myreports' ? styles.active : ''}`}>My Reports</Link></li>
@@ -729,76 +814,120 @@ export default function UserMyReportsPage() {
         {/* Profile Completion Banner */}
         {showProfileBanner && (
           <div className={styles.profileBanner}>
+            <button
+              className={styles.bannerClose}
+              onClick={handleDismissProfileBanner}
+              aria-label="Dismiss profile reminder"
+            >
+              ✕
+            </button>
             <div className={styles.bannerContent}>
-              <i className="fa-solid fa-circle-exclamation" style={{ marginRight: '10px', fontSize: '18px' }}></i>
-              <span>
+              <p className={styles.bannerText}>
                 Your profile is incomplete. Please update your barangay, municipality, and contact information.
-              </span>
-              <button 
+              </p>
+              <button
                 className={styles.bannerBtn}
                 onClick={() => router.push('/user-profile')}
               >
                 Complete Profile
-              </button>
-              <button 
-                className={styles.bannerClose}
-                onClick={() => setShowProfileBanner(false)}
-                aria-label="Dismiss"
-              >
-                ✖
               </button>
             </div>
           </div>
         )}
       </header>
 
-      <main className={styles.feedContainer}>
-        <div className={styles.toolbar} role="toolbar" aria-label="Reports toolbar">
-          <div className={styles.toolbarInner}>
-            <button
-              className={`${styles.reportBtn}`}
-              onClick={() => setAddModalVisible(true)}
-            >
-              + Add Report
-            </button>
+      <main className={styles.pageWrap}>
+        <div className={styles.feedContainer}>
+          <div className={styles.toolbar} role="toolbar" aria-label="Reports toolbar">
+            <div className={styles.toolbarInner}>
+              <button
+                className={`${styles.reportBtn}`}
+                onClick={() => setAddModalVisible(true)}
+              >
+                + Add Report
+              </button>
 
-            <input
-              type="text"
-              className={styles.searchInput}
-              placeholder="Search reports..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+              <input
+                type="text"
+                className={styles.searchInput}
+                placeholder="Search reports..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
-        <section className={styles.feedList} id="user-myreports">
-          <div className={styles.myreportsColumn}>
+          <section className={styles.feedList} id="user-myreports">
+            <div className={styles.myreportsColumn}>
 
-            <div id="reportList" className={styles.reportList}>
-              {filteredReports.length > 0 ? (
-                filteredReports.map((report, i) => {
+              <div id="reportList" className={styles.reportList}>
+                {filteredReports.length > 0 ? (
+                  filteredReports.map((report, i) => {
                   const reportUserPic = report.user?.profilePicture?.url || defaultProfilePic;
                   const statusClass = String(report.status || "").toLowerCase().replace(/\s+/g, "-");
                   
                   return (
                     <article key={report._id || i} className={styles.reportCard}>
+                      <div className={styles.reportMetaRow}>
+                        <div className={styles.reportHeader}>
+                          <img 
+                            src={reportUserPic} 
+                            alt="Avatar" 
+                            className={styles.reportAvatar}
+                            style={{ 
+                              width: '32px', 
+                              height: '32px', 
+                              borderRadius: '50%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          <span className={styles.reportUser}>{report.user.fName} {report.user.lName}</span>
+                        </div>
+                        <div className={styles.cardActions}>
+                          <button
+                            type="button"
+                            className={`btn btnSecondary ${styles.kebabBtn}`}
+                            aria-haspopup="menu"
+                            aria-expanded={openMenuId === i}
+                            onClick={() => setOpenMenuId(openMenuId === i ? null : i)}
+                            title="Actions"
+                          >
+                            <span className={styles.kebabIcon}>⋮</span>
+                          </button>
+                          {openMenuId === i && (
+                            <div className={styles.kebabMenu} role="menu">
+                              {(() => {
+                                const statusNorm = String(report.status || '').toLowerCase().replace(/\s+/g,'-');
+                                const canModify = statusNorm === 'pending' || statusNorm === 'awaiting-approval';
+                                return (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className={`btn btnSecondary ${styles.menuItem}`}
+                                      onClick={() => handleAttemptEdit(report)}
+                                      title={isLockedStatus(report.status) ? `You can't edit a report that is ${report.status}` : 'Edit this report'}
+                                      role="menuitem"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`btn btnDestructive ${styles.menuItem}`}
+                                      onClick={() => handleAttemptDelete(report, i)}
+                                      title={isLockedStatus(report.status) ? `You can't delete a report that is ${report.status}` : 'Delete this report'}
+                                      role="menuitem"
+                                    >
+                                      Delete
+                                    </button>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       <div className={styles.reportRow}>
                         <div className={styles.reportContent}>
-                          <div className={styles.reportHeader}>
-                            <img 
-                              src={reportUserPic} 
-                              alt="Avatar" 
-                              className={styles.reportAvatar}
-                              style={{ 
-                                width: '32px', 
-                                height: '32px', 
-                                borderRadius: '50%',
-                                objectFit: 'cover'
-                              }}
-                            />
-                            <span className={styles.reportUser}>{report.user.fName} {report.user.lName}</span>
-                          </div>
-
                           <h3 className={styles.reportTitle}>{report.title}</h3>
 
                           <p className={styles.reportCategory}>
@@ -819,90 +948,57 @@ export default function UserMyReportsPage() {
                         </div>
 
                         <div className={styles.reportImage}>
-                          <div className={styles.cardActions}>
-                            <button
-                              type="button"
-                              className={`btn btnSecondary ${styles.kebabBtn}`}
-                              aria-haspopup="menu"
-                              aria-expanded={openMenuId === i}
-                              onClick={() => setOpenMenuId(openMenuId === i ? null : i)}
-                              title="Actions"
-                            >
-                              <span className={styles.kebabIcon}>⋮</span>
-                            </button>
-                            {openMenuId === i && (
-                              <div className={styles.kebabMenu} role="menu">
-                                {(() => {
-                                  const statusNorm = String(report.status || '').toLowerCase().replace(/\s+/g,'-');
-                                  const canModify = statusNorm === 'pending' || statusNorm === 'awaiting-approval';
-                                  return (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className={`btn btnSecondary ${styles.menuItem}`}
-                                        onClick={() => handleAttemptEdit(report)}
-                                        title={isLockedStatus(report.status) ? `You can't edit a report that is ${report.status}` : 'Edit this report'}
-                                        role="menuitem"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className={`btn btnDestructive ${styles.menuItem}`}
-                                        onClick={() => handleAttemptDelete(report, i)}
-                                        title={isLockedStatus(report.status) ? `You can't delete a report that is ${report.status}` : 'Delete this report'}
-                                        role="menuitem"
-                                      >
-                                        Delete
-                                      </button>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            )}
-                          </div>
+                          {(() => {
+                            const allImages = report.images && report.images.length > 0
+                              ? report.images
+                              : report.image
+                              ? [report.image]
+                              : ["/images/broken-streetlights.jpg"];
 
-                          <div className={styles.reportImageGallery}>
-                            {(() => {
-                              const allImages = report.images && report.images.length > 0 
-                                ? report.images 
-                                : report.image 
-                                ? [report.image] 
-                                : ["/images/broken-streetlights.jpg"];
-                              
-                              const displayImages = allImages.slice(0, 4);
-                              const totalImages = allImages.length;
-                              
-                              return displayImages.map((img, idx) => {
-                                const isLastImage = idx === 3 && totalImages === 5;
-                                
-                                return (
-                                  <div 
-                                    key={idx} 
-                                    className={styles.reportImageItem}
-                                    onClick={() => openLightbox(allImages, idx)} // ✅ Make clickable
-                                    style={{ position: 'relative', cursor: 'pointer' }}
-                                  >
-                                    <Image 
-                                      src={img} 
-                                      alt={`Report Image ${idx + 1}`} 
-                                      width={500} 
-                                      height={250} 
-                                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg";
-                                      }}
-                                    />
-                                    {isLastImage && (
-                                      <div className={styles.imageOverlay}>
-                                        <span className={styles.overlayText}>+1</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              });
-                            })()}
-                          </div>
+                            const totalImages = allImages.length;
+                            if (totalImages === 0) {
+                              return null;
+                            }
+
+                            const displayImages = allImages.slice(0, 4);
+                            const containerClass = totalImages <= 1
+                              ? `${styles.reportImageGallery} ${styles.singleImage}`
+                              : styles.reportImageGallery;
+
+                            return (
+                              <div className={containerClass}>
+                                {displayImages.map((img, idx) => {
+                                  const isLastImage = idx === 3 && totalImages === 5;
+
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className={styles.reportImageItem}
+                                      onClick={() => openLightbox(allImages, idx)}
+                                      style={{ position: 'relative', cursor: 'pointer' }}
+                                    >
+                                      <Image
+                                        src={img}
+                                        alt={`Report Image ${idx + 1}`}
+                                        width={500}
+                                        height={250}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg";
+                                        }}
+                                      />
+                                      {isLastImage && (
+                                        <div className={styles.imageOverlay}>
+                                          <span className={styles.overlayText}>+1</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+
                         </div>
                       </div>
 
@@ -922,13 +1018,14 @@ export default function UserMyReportsPage() {
                       </div>
                     </article>
                   );
-                })
-              ) : (
-                <p id="noResults" className={styles.noResults}>No reports found</p>
-              )}
+                  })
+                ) : (
+                  <p id="noResults" className={styles.noResults}>No reports found</p>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
 
       {/* Edit Modal and Delete Modal remain the same */}
@@ -986,40 +1083,67 @@ export default function UserMyReportsPage() {
                     onChange={handleAddImageChange}
                   />
                   
-                  {/* ✅ Image Previews Grid */}
-                  <div className={styles.imagePreviewGrid}>
-                    {imagePreviews.slice(0, 4).map((preview, index) => {
-                      const isLastPreview = index === 3 && imagePreviews.length === 5;
-                      
-                      return (
-                        <div key={index} className={styles.previewItem}>
-                          <img 
-                            src={preview} 
-                            alt={`Preview ${index + 1}`}
-                            className={styles.previewImage}
-                            style={isLastPreview ? { filter: 'brightness(0.4)' } : {}}
-                          />
-                          
-                          {isLastPreview && (
-                            <div className={styles.overlayCount}>
-                              +1
-                            </div>
-                          )}
-                          
+                  {/* ✅ Image Preview Carousel */}
+                  <div className={`${styles.addImagePreviewGrid} ${imagePreviews.length ? styles.addHasImages : ""}`}>
+                    {imagePreviews.length > 0 ? (
+                      <div className={styles.addPreviewFrame}>
+                        {imagePreviews.length > 1 && (
                           <button
                             type="button"
-                            className={styles.removePreviewBtn}
-                            onClick={() => removeAddImage(index)}
-                            aria-label="Remove image"
+                            className={`${styles.addPreviewNav} ${styles.addPreviewNavPrev}`}
+                            onClick={() => handleAddPreviewNavigation("prev")}
+                            aria-label="Previous image"
                           >
-                            ✖
+                            ‹
                           </button>
+                        )}
+
+                        <div
+                          className={styles.addPreviewSlide}
+                          role="button"
+                          tabIndex={0}
+                          onClick={handleAddPreviewClick}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              handleAddPreviewClick();
+                            }
+                          }}
+                        >
+                          <img
+                            src={imagePreviews[addPreviewIndex]}
+                            alt={`Preview ${addPreviewIndex + 1}`}
+                            className={styles.addPreviewImage}
+                          />
                         </div>
-                      );
-                    })}
-                    
-                    {imagePreviews.length === 0 && (
-                      <div className={styles.uploadPlaceholder}>
+
+                        {imagePreviews.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              className={`${styles.addPreviewNav} ${styles.addPreviewNavNext}`}
+                              onClick={() => handleAddPreviewNavigation("next")}
+                              aria-label="Next image"
+                            >
+                              ›
+                            </button>
+                            <span className={styles.addPreviewCounter}>
+                              {addPreviewIndex + 1}/{imagePreviews.length}
+                            </span>
+                          </>
+                        )}
+
+                        <button
+                          type="button"
+                          className={styles.addRemovePreviewBtn}
+                          onClick={() => removeAddImage(addPreviewIndex)}
+                          aria-label="Remove image"
+                        >
+                          ✖
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={styles.addUploadPlaceholder}>
                         <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '8px' }}></i>
                         <p>Click to upload images</p>
                         <p style={{ fontSize: '12px', color: '#64748b' }}>Up to 5 images, 5MB each</p>
@@ -1277,6 +1401,6 @@ export default function UserMyReportsPage() {
         </div>
       )}
       
-    </div>
+    </>
   );
 }

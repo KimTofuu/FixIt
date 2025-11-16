@@ -10,6 +10,22 @@ import { toast } from "react-toastify";
 import { useLoader } from "@/context/LoaderContext";
 import { useRouter, usePathname } from "next/navigation";
 
+interface ReportComment {
+  _id?: string;
+  id?: string;
+  userId?: string | { _id?: unknown; id?: unknown; $oid?: string } | null;
+  user?: string;
+  fName?: string;
+  lName?: string;
+  email?: string;
+  barangay?: string;
+  municipality?: string;
+  profilePicture?: string;
+  text: string;
+  createdAt?: string;
+  editedAt?: string | Date | null;
+}
+
 interface Report {
   _id: string;
   user: { 
@@ -45,7 +61,7 @@ interface Report {
   image?: string;
   helpfulVotes?: number;
   votedBy?: (string | any)[]; 
-  comments?: { user: string; text: string; createdAt?: string }[];
+  comments?: ReportComment[];
   flags?: Array<{ // Add this
     userId: string;
     reason: string;
@@ -56,6 +72,8 @@ interface Report {
 }
 
 interface UserProfile {
+  _id?: string;
+  id?: string;
   fName?: string;
   lName?: string;
   email?: string;
@@ -88,6 +106,36 @@ const getLevelColor = (level: string) => {
     case 'Guardian': return '#ef4444';
     default: return '#94a3b8';
   }
+};
+
+const resolveIdString = (value: unknown): string | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "string" && value.trim() && value !== "[object Object]") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value.toString();
+  }
+  if (typeof value === "object") {
+    const obj = value as { [key: string]: unknown };
+    if (typeof obj.$oid === "string") {
+      return obj.$oid;
+    }
+    if (typeof (obj as { toString?: () => string }).toString === "function") {
+      const asString = (obj as { toString: () => string }).toString();
+      if (asString && asString !== "[object Object]") {
+        return asString;
+      }
+    }
+    const nestedKeys = ["_id", "id", "$id"];
+    for (const key of nestedKeys) {
+      const nested = resolveIdString(obj[key]);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return undefined;
 };
 
 const handleHelpfulVote = async (reportId: string, setReports: React.Dispatch<React.SetStateAction<Report[]>>) => {
@@ -168,6 +216,22 @@ export default function UserFeedPage() {
   const [showProfileBanner, setShowProfileBanner] = useState(false);
   const { showLoader, hideLoader } = useLoader();
 
+  const buildBannerStorageKey = (profile?: UserProfile | null) => {
+    if (!profile) return null;
+    const identifier = profile._id || profile.id || profile.email;
+    return identifier ? `profileBannerDismissed:${identifier}` : null;
+  };
+
+  const handleDismissProfileBanner = () => {
+    if (typeof window !== "undefined") {
+      const key = buildBannerStorageKey(userProfile);
+      if (key) {
+        localStorage.setItem(key, "true");
+      }
+    }
+    setShowProfileBanner(false);
+  };
+
   const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -177,6 +241,12 @@ export default function UserFeedPage() {
     reason: "",
     description: ""
   });
+  const [showCommenterModal, setShowCommenterModal] = useState(false);
+  const [activeCommenter, setActiveCommenter] = useState<ReportComment | null>(null);
+  const [openCommentMenu, setOpenCommentMenu] = useState<string | null>(null);
+  const [editingComment, setEditingComment] = useState<{ reportId: string; commentId: string } | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [pendingDeleteComment, setPendingDeleteComment] = useState<{ reportId: string; commentId: string; commentText?: string } | null>(null);
 
   const flagReasons = [
     "Spam or misleading information",
@@ -187,6 +257,40 @@ export default function UserFeedPage() {
     "Already resolved",
     "Other"
   ];
+
+  const getCommenterFirstName = (comment: ReportComment) => {
+    if (comment.fName && comment.fName.trim().length > 0) {
+      return comment.fName.trim();
+    }
+    if (comment.user && comment.user.trim().length > 0) {
+      return comment.user.trim().split(' ')[0];
+    }
+    if (comment.lName && comment.lName.trim().length > 0) {
+      return comment.lName.trim();
+    }
+    return "Resident";
+  };
+
+  const getCommenterFullName = (comment: ReportComment) => {
+    const composed = `${comment.fName || ''} ${comment.lName || ''}`.trim();
+    if (composed.length > 0) {
+      return composed;
+    }
+    if (comment.user && comment.user.trim().length > 0) {
+      return comment.user.trim();
+    }
+    return getCommenterFirstName(comment);
+  };
+
+  const openCommenterModal = (comment: ReportComment) => {
+    setActiveCommenter(comment);
+    setShowCommenterModal(true);
+  };
+
+  const closeCommenterModal = () => {
+    setShowCommenterModal(false);
+    setActiveCommenter(null);
+  };
 
   const filteredReports = reports.filter((r) =>
     `${r.user?.fName ?? ""} ${r.user?.lName ?? ""} ${r.title} ${r.location} ${r.description}`
@@ -226,11 +330,35 @@ export default function UserFeedPage() {
           const data = await res.json();
           console.log("✅ User profile loaded:", data);
           console.log("📸 Nav profile picture URL:", data.profilePicture?.url);
-          setUserProfile(data);
 
-          // Check if profile is incomplete
-          const isIncomplete = !data.barangay || !data.municipality || !data.contact;
-          setShowProfileBanner(isIncomplete);
+          const normalizedProfile: UserProfile = {
+            ...data,
+            _id: data._id || data.id,
+            id: data.id,
+          };
+
+          setUserProfile(normalizedProfile);
+
+          const isIncomplete =
+            !normalizedProfile.barangay ||
+            !normalizedProfile.municipality ||
+            !normalizedProfile.contact;
+
+          const dismissalKey = buildBannerStorageKey(normalizedProfile);
+
+          if (!isIncomplete) {
+            setShowProfileBanner(false);
+            if (typeof window !== "undefined" && dismissalKey) {
+              localStorage.removeItem(dismissalKey);
+            }
+          } else {
+            if (typeof window !== "undefined" && dismissalKey) {
+              const dismissed = localStorage.getItem(dismissalKey) === "true";
+              setShowProfileBanner(!dismissed);
+            } else {
+              setShowProfileBanner(true);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to fetch user profile", err);
@@ -374,6 +502,141 @@ export default function UserFeedPage() {
           r._id === reportId ? { ...r, comments: updatedComments } : r
         )
       );
+    }
+  };
+
+  const updateComment = async (reportId: string, commentId: string, text: string) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/comment/${encodeURIComponent(commentId)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (res.ok) {
+        const updatedComments = await res.json();
+        setReports((prev) =>
+          prev.map((r) =>
+            r._id === reportId ? { ...r, comments: updatedComments } : r
+          )
+        );
+        toast.success("Comment updated");
+        setOpenCommentMenu(null);
+        setEditingComment(null);
+        setEditingCommentText("");
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.message || "Failed to update comment");
+      }
+    } catch (error) {
+      console.error("updateComment error", error);
+      toast.error("Failed to update comment");
+    }
+  };
+
+  const deleteComment = async (reportId: string, commentId: string) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/comment/${encodeURIComponent(commentId)}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const updatedComments = await res.json();
+        setReports((prev) =>
+          prev.map((r) =>
+            r._id === reportId ? { ...r, comments: updatedComments } : r
+          )
+        );
+        toast.success("Comment deleted");
+        if (editingComment && editingComment.commentId === commentId) {
+          setEditingComment(null);
+          setEditingCommentText("");
+        }
+        setOpenCommentMenu(null);
+        return true;
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.message || "Failed to delete comment");
+        return false;
+      }
+    } catch (error) {
+      console.error("deleteComment error", error);
+      toast.error("Failed to delete comment");
+      return false;
+    }
+  };
+
+  const handleStartEditComment = (reportId: string, comment: ReportComment) => {
+    const commentId = resolveIdString(comment._id) || resolveIdString(comment.id);
+    if (!commentId) {
+      toast.error("Unable to edit this comment right now.");
+      return;
+    }
+    setEditingComment({ reportId, commentId });
+    setEditingCommentText(comment.text || "");
+    setOpenCommentMenu(null);
+  };
+
+  const handleCancelEditComment = () => {
+    setEditingComment(null);
+    setEditingCommentText("");
+  };
+
+  const handleSubmitEditedComment = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingComment) return;
+
+    const trimmed = editingCommentText.trim();
+    if (!trimmed) {
+      toast.error("Comment cannot be empty");
+      return;
+    }
+
+    const report = reports.find((r) => r._id === editingComment.reportId);
+    const existingComment = report?.comments?.find((c) => c._id === editingComment.commentId);
+    if (existingComment && existingComment.text?.trim() === trimmed) {
+      toast.info("No changes to save");
+      handleCancelEditComment();
+      return;
+    }
+
+    await updateComment(editingComment.reportId, editingComment.commentId, trimmed);
+  };
+
+  const handleRequestDeleteComment = (reportId: string, commentId?: string, commentText?: string) => {
+    if (!commentId) {
+      toast.error("Unable to delete this comment right now.");
+      return;
+    }
+
+    const normalizedCommentId = resolveIdString(commentId);
+    if (!normalizedCommentId) {
+      toast.error("Unable to delete this comment right now.");
+      return;
+    }
+
+    setOpenCommentMenu(null);
+    setPendingDeleteComment({ reportId, commentId: normalizedCommentId, commentText });
+  };
+
+  const handleCancelDeleteComment = () => {
+    setPendingDeleteComment(null);
+  };
+
+  const handleConfirmDeleteComment = async () => {
+    if (!pendingDeleteComment) return;
+    const { reportId, commentId } = pendingDeleteComment;
+    const success = await deleteComment(reportId, commentId);
+    if (success) {
+      setPendingDeleteComment(null);
     }
   };
 
@@ -588,6 +851,7 @@ export default function UserFeedPage() {
   };
 
   const profilePicUrl = userProfile?.profilePicture?.url || defaultProfilePic;
+  const currentUserEmail = userProfile?.email ? userProfile.email.toLowerCase() : null;
 
   // Add this helper to check if current user voted
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -601,7 +865,7 @@ export default function UserFeedPage() {
         });
         if (res.ok) {
           const data = await res.json();
-          setCurrentUserId(data._id);
+          setCurrentUserId(data._id || data.id || null);
         }
       } catch (err) {
         console.error("Failed to fetch user ID", err);
@@ -647,6 +911,34 @@ export default function UserFeedPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxOpen, currentReportImages.length]);
+
+  useEffect(() => {
+    if (!showCommenterModal) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeCommenterModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showCommenterModal]);
+
+  useEffect(() => {
+    if (!openCommentMenu) return;
+
+    const handleClickAway = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest(`[data-comment-menu-key="${openCommentMenu}"]`)) {
+        return;
+      }
+      setOpenCommentMenu(null);
+    };
+
+    document.addEventListener('click', handleClickAway);
+    return () => document.removeEventListener('click', handleClickAway);
+  }, [openCommentMenu]);
 
   return (
     <>
@@ -722,23 +1014,22 @@ export default function UserFeedPage() {
         {/* Profile Completion Banner */}
         {showProfileBanner && (
           <div className={styles.profileBanner}>
+            <button
+              className={styles.bannerClose}
+              onClick={handleDismissProfileBanner}
+              aria-label="Dismiss profile reminder"
+            >
+              ✕
+            </button>
             <div className={styles.bannerContent}>
-              <i className="fa-solid fa-circle-exclamation" style={{ marginRight: '10px', fontSize: '18px' }}></i>
-              <span>
+              <p className={styles.bannerText}>
                 Your profile is incomplete. Please update your barangay, municipality, and contact information.
-              </span>
-              <button 
+              </p>
+              <button
                 className={styles.bannerBtn}
                 onClick={() => router.push('/user-profile')}
               >
                 Complete Profile
-              </button>
-              <button 
-                className={styles.bannerClose}
-                onClick={() => setShowProfileBanner(false)}
-                aria-label="Dismiss"
-              >
-                ✖
               </button>
             </div>
           </div>
@@ -870,36 +1161,44 @@ export default function UserFeedPage() {
                           <p className={styles.reportDetails}>{r.description}</p>
                         </div>
 
-                        <div className={styles.reportImageGallery}>
-                          {(() => {
-                            const allImages = r.images && r.images.length > 0 ? r.images : r.image ? [r.image] : [];
-                            const displayImages = allImages.slice(0, 4);
-                            const totalImages = allImages.length;
+                        {(() => {
+                          const allImages = r.images && r.images.length > 0 ? r.images : r.image ? [r.image] : [];
+                          const totalImages = allImages.length;
+                          if (totalImages === 0) {
+                            return null;
+                          }
+                          const displayImages = allImages.slice(0, 4);
+                          const containerClass = totalImages <= 1
+                            ? `${styles.reportImageGallery} ${styles.singleImage}`
+                            : styles.reportImageGallery;
 
-                            return displayImages.map((imgSrc, idx) => {
-                              const isLastImage = idx === 3 && totalImages === 5;
-                              
-                              return (
-                                <div 
-                                  key={idx} 
-                                  className={styles.reportImageItem}
-                                  onClick={() => openLightbox(allImages, idx)} // ✅ Make clickable
-                                  style={{ cursor: 'pointer' }}
-                                >
-                                  <ReportImage 
-                                    src={imgSrc} 
-                                    alt={`${r.title} - Image ${idx + 1}`} 
-                                  />
-                                  {isLastImage && (
-                                    <div className={styles.imageOverlay}>
-                                      <span className={styles.overlayText}>+1</span>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            });
-                          })()}
-                        </div>
+                          return (
+                            <div className={containerClass}>
+                              {displayImages.map((imgSrc, idx) => {
+                                const isLastImage = idx === 3 && totalImages === 5;
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={styles.reportImageItem}
+                                    onClick={() => openLightbox(allImages, idx)}
+                                    style={{ cursor: 'pointer' }}
+                                  >
+                                    <ReportImage
+                                      src={imgSrc}
+                                      alt={`${r.title} - Image ${idx + 1}`}
+                                    />
+                                    {isLastImage && (
+                                      <div className={styles.imageOverlay}>
+                                        <span className={styles.overlayText}>+1</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className={styles.reportActions}>
                         <button
@@ -944,16 +1243,140 @@ export default function UserFeedPage() {
                       <div className={styles.reportComments}>
                         <h4>Comments</h4>
                         <ul className={styles.commentList}>
-                          {(r.comments ?? []).map((c, idx) => (
-                            <li key={idx}>
-                              <b>{c.user}:</b> {c.text}
-                              {c.createdAt && (
-                                <span className={styles.commentDate}>
-                                  {new Date(c.createdAt).toLocaleString()}
-                                </span>
-                              )}
-                            </li>
-                          ))}
+                          {(r.comments ?? []).map((c, idx) => {
+                            const firstName = getCommenterFirstName(c);
+                            const commentOwnerId = resolveIdString(c.userId);
+                            const commentId = resolveIdString(c._id) || resolveIdString(c.id) || "";
+                            const commentMenuKey = `${r._id}:${commentId || idx}`;
+                            const ownsById = Boolean(
+                              currentUserId && commentOwnerId && String(commentOwnerId) === String(currentUserId)
+                            );
+                            const commentEmail = c.email ? c.email.toLowerCase() : null;
+                            const ownsByEmail = Boolean(
+                              currentUserEmail && commentEmail && commentEmail === currentUserEmail
+                            );
+                            const canManageComment = Boolean(commentId && (ownsById || ownsByEmail));
+                            const isEditing =
+                              canManageComment &&
+                              editingComment?.reportId === r._id &&
+                              editingComment.commentId === commentId;
+                            const createdLabel = c.createdAt
+                              ? new Date(c.createdAt).toLocaleString()
+                              : null;
+                            const editedLabel = c.editedAt
+                              ? new Date(c.editedAt).toLocaleString()
+                              : null;
+
+                            return (
+                              <li key={c._id ?? `${r._id}-comment-${idx}`} className={styles.commentItem}>
+                                <div className={styles.commentHeader}>
+                                  <div className={styles.commentHeaderMain}>
+                                    <button
+                                      type="button"
+                                      className={styles.commentAuthor}
+                                      onClick={() => openCommenterModal(c)}
+                                      aria-label={`View ${firstName}'s details`}
+                                    >
+                                      {firstName}
+                                    </button>
+                                    {createdLabel && (
+                                      <span className={styles.commentTimestamp}>{createdLabel}</span>
+                                    )}
+                                    {c.editedAt && (
+                                      <span
+                                        className={styles.commentEdited}
+                                        title={editedLabel ? `Edited ${editedLabel}` : 'Edited'}
+                                      >
+                                        Edited
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {canManageComment && (
+                                    <div
+                                      className={styles.commentMenu}
+                                      data-comment-menu-key={commentMenuKey}
+                                    >
+                                      <button
+                                        type="button"
+                                        className={styles.commentMenuButton}
+                                        aria-label="Comment options"
+                                        aria-haspopup="true"
+                                        aria-expanded={openCommentMenu === commentMenuKey}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setOpenCommentMenu((prev) =>
+                                            prev === commentMenuKey ? null : commentMenuKey
+                                          );
+                                        }}
+                                      >
+                                        <span className={styles.commentMenuIcon} aria-hidden="true">⋮</span>
+                                      </button>
+
+                                      {openCommentMenu === commentMenuKey && (
+                                        <div
+                                          className={styles.commentMenuPanel}
+                                          role="menu"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <button
+                                            type="button"
+                                            className={styles.commentMenuAction}
+                                            role="menuitem"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleStartEditComment(r._id, c);
+                                            }}
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={`${styles.commentMenuAction} ${styles.commentMenuDanger}`}
+                                            role="menuitem"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleRequestDeleteComment(r._id, commentId, c.text);
+                                            }}
+                                          >
+                                            Delete
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {isEditing ? (
+                                  <form className={styles.commentEditForm} onSubmit={handleSubmitEditedComment}>
+                                    <textarea
+                                      className={styles.commentEditTextarea}
+                                      value={editingCommentText}
+                                      onChange={(event) => setEditingCommentText(event.target.value)}
+                                      rows={3}
+                                    />
+                                    <div className={styles.commentEditActions}>
+                                      <button
+                                        type="button"
+                                        className={styles.commentEditCancel}
+                                        onClick={handleCancelEditComment}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="submit"
+                                        className={`${styles.commentEditButton} btn btnPrimary`}
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </form>
+                                ) : (
+                                  <p className={styles.commentText}>{c.text}</p>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                         <input
                           type="text"
@@ -977,6 +1400,64 @@ export default function UserFeedPage() {
           </section>
         </div>
       </main>
+
+      {showCommenterModal && activeCommenter && (
+        <div
+          className={styles.commenterOverlay}
+          role="dialog"
+          aria-modal="true"
+          onClick={closeCommenterModal}
+        >
+          <div
+            className={styles.commenterCard}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.commenterClose}
+              onClick={closeCommenterModal}
+              aria-label="Close commenter details"
+            >
+              ✕
+            </button>
+            <div className={styles.commenterHeader}>
+              {activeCommenter.profilePicture ? (
+                <Image
+                  src={activeCommenter.profilePicture}
+                  alt={`${getCommenterFullName(activeCommenter)} avatar`}
+                  width={64}
+                  height={64}
+                  className={styles.commenterAvatar}
+                />
+              ) : (
+                <div className={styles.commenterAvatarFallback}>
+                  {getCommenterFirstName(activeCommenter).charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h3 className={styles.commenterName}>{getCommenterFullName(activeCommenter)}</h3>
+                {activeCommenter.email && (
+                  <p className={styles.commenterSub}>{activeCommenter.email}</p>
+                )}
+              </div>
+            </div>
+            <div className={styles.commenterBody}>
+              {activeCommenter.barangay && (
+                <p className={styles.commenterField}>
+                  <span>Barangay</span>
+                  <strong>{activeCommenter.barangay}</strong>
+                </p>
+              )}
+              {activeCommenter.municipality && (
+                <p className={styles.commenterField}>
+                  <span>Municipality</span>
+                  <strong>{activeCommenter.municipality}</strong>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {modalVisible && (
@@ -1180,6 +1661,52 @@ export default function UserFeedPage() {
                 <button type="submit" className={`${styles.submitBtn} btn btnPrimary`}>Submit Report</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteComment && (
+        <div
+          className={styles.confirmModalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="deleteCommentTitle"
+          onClick={handleCancelDeleteComment}
+        >
+          <div
+            className={styles.confirmModal}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.confirmModalHeader}>
+              <span className={styles.confirmModalIcon} aria-hidden="true">🗑️</span>
+              <div>
+                <h3 id="deleteCommentTitle" className={styles.confirmModalTitle}>Delete comment?</h3>
+                <p className={styles.confirmModalSubtitle}>This action cannot be undone.</p>
+              </div>
+            </div>
+            {pendingDeleteComment.commentText && (
+              <blockquote className={styles.confirmModalComment}>
+                {pendingDeleteComment.commentText.length > 160
+                  ? `${pendingDeleteComment.commentText.slice(0, 160)}…`
+                  : pendingDeleteComment.commentText}
+              </blockquote>
+            )}
+            <div className={styles.confirmModalActions}>
+              <button
+                type="button"
+                className={styles.confirmModalCancel}
+                onClick={handleCancelDeleteComment}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.confirmModalDelete}
+                onClick={handleConfirmDeleteComment}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

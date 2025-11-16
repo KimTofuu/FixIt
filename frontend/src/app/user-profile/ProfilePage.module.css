@@ -26,12 +26,40 @@
 .nav, .nav * { transition-property: none !important; }
 
 .navList { display:flex; gap:0.5rem; align-items:center; flex-direction:column; list-style:none; margin:2rem 0 0 0; padding:0; }
-.navLink { display:flex; align-items:center; gap:0.6rem; padding:0.6rem 0.9rem; color:#071427; text-decoration:none; font-weight:600; border-radius:10px; transition: background 160ms ease, transform 120ms ease, color 120ms ease; }
+.navLink {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:0.6rem;
+  padding:0.6rem 0.9rem;
+  color:#071427;
+  text-decoration:none;
+  font-weight:600;
+  border-radius:10px;
+  transition: background 160ms ease, transform 120ms ease, color 120ms ease;
+  text-align:center;
+}
 .navLink:hover { background: rgba(6, 182, 212, 0.12); transform: translateX(4px); color: #0f766e; }
 .navLink.active { background: #00CCCB; color:#fff; box-shadow: 0 8px 24px rgba(0, 204, 203, 0.2); }
 
 .profileLink { display:flex; align-items:center; gap:8px; padding:0.4rem; margin-top: clamp(2.5rem, 18vh, 6rem); border-radius:10px; text-decoration:none; color:inherit; }
 .profilePic { width:44px; height:44px; border-radius:10px; object-fit:cover; box-shadow:0 6px 22px rgba(2,6,23,0.08); }
+
+@media (min-width: 1440px) {
+  .nav { align-items: stretch; }
+  .navList {
+    flex: 1 1 auto;
+    width: 100%;
+    align-items: stretch;
+  }
+  .navList li:last-child {
+    margin-top: auto;
+  }
+  .profileLink {
+    margin-top: 0;
+    justify-content: center;
+  }
+}
 
 .right{
   margin-left:auto;
@@ -86,7 +114,8 @@
 
 @media (max-width: 1024px) {
   .page {
-    padding-left: clamp(1.25rem, 3vw, 2rem);
+    --user-sidebar: 11.5rem;
+    padding-left: calc(var(--user-sidebar) + clamp(0.75rem, 2.5vw, 1.5rem));
   }
 }
 .card{
@@ -351,10 +380,10 @@
   .hamburger{ display:block; }
   .container{ margin:1.25rem auto; padding:0 1rem; }
   .card{ padding:1.25rem; border-radius:12px; }
-  .headerRow{ align-items:flex-start; gap:12px; }
+  .headerRow{ align-items:center; gap:12px; flex-wrap:wrap; width: 100%; margin: 0; }
   .avatarWrap{ width:72px; height:72px; }
   .largeAvatar{ width:64px; height:64px; }
-  .grid{ grid-template-columns:1fr; gap:12px; }
+  .grid{ grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
   .name{ font-size:1rem; }
   .modal{ width:88%; max-width:360px; }
 }
@@ -369,6 +398,7 @@
   .email{ font-size:0.9rem; }
   .modal{ width:92%; }
   .logoutBtn{ padding:8px 10px; }
+  .grid{ grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; }
 }
 
 /* Extra small phones */
@@ -396,7 +426,7 @@
     bottom: auto;
     width: 100%;
     height: auto;
-    z-index: 1600;
+    z-index: 2400;
     justify-content: flex-start;
   }
   .overlayNav {
@@ -409,6 +439,7 @@
     height: auto;
     pointer-events: none;
     justify-content: flex-start;
+    z-index: 2400;
   }
   .nav {
     flex-direction: row;
@@ -447,6 +478,68 @@
   .container {
     padding: 0 clamp(1rem, 4vw, 1.5rem);
   }
+  .tabNav {
+    top: calc(var(--user-mobile-nav, 60px) + clamp(0.6rem, 3vw, 1rem));
+  }
+}
+
+@media (max-width: 780px) {
+  .page {
+    padding-top: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .overlayNav {
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    margin: 0;
+  }
+  .nav {
+    width: 100%;
+    border-radius: 0;
+    padding: 0.75rem clamp(1rem, 4vw, 1.5rem);
+    margin:0;
+  }
+  .container {
+    margin-top: clamp(1rem, 4vw, 1.5rem);
+  }
+  .headerRow {
+    flex-wrap: wrap;
+    align-items: center;
+    text-align: left;
+    gap: 14px;
+    width: 100%;
+    margin: 0;
+  }
+  .identity {
+    width: auto;
+    flex: 1 1 220px;
+  }
+  .headerActions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  .actionsRow {
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .linkButton {
+    justify-content: center;
+    min-width: 180px;
+  }
+  .rightActions {
+    margin-left: auto;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
 }
 
 /* Add these to your existing ProfilePage.module.css */
@@ -460,6 +553,9 @@
   padding: 8px;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: clamp(1.25rem, 3vw, 1.9rem);
+  z-index: 120;
 }
 
 .tab {

@@ -11,6 +11,8 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useLoader } from "@/context/LoaderContext";
 
 interface UserProfile {
+  _id?: string;
+  id?: string;
   fName?: string;
   lName?: string;
   email?: string;
@@ -104,8 +106,25 @@ export default function UserMapPage() {
   });
 
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
 
   const [reports, setReports] = useState<Report[]>([]);
+
+  const buildBannerStorageKey = (profile?: UserProfile | null) => {
+    if (!profile) return null;
+    const identifier = profile._id || profile.id || profile.email;
+    return identifier ? `profileBannerDismissed:${identifier}` : null;
+  };
+
+  const handleDismissProfileBanner = () => {
+    if (typeof window !== "undefined") {
+      const key = buildBannerStorageKey(userProfile);
+      if (key) {
+        localStorage.setItem(key, "true");
+      }
+    }
+    setShowProfileBanner(false);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -126,11 +145,35 @@ export default function UserMapPage() {
           const data = await res.json();
           console.log("✅ User profile loaded:", data);
           console.log("📸 Profile picture URL:", data.profilePicture?.url);
-          setUserProfile(data);
 
-          // Check if profile is incomplete
-          const isIncomplete = !data.barangay || !data.municipality || !data.contact;
-          setShowProfileBanner(isIncomplete);
+          const normalizedProfile: UserProfile = {
+            ...data,
+            _id: data._id || data.id,
+            id: data.id,
+          };
+
+          setUserProfile(normalizedProfile);
+
+          const isIncomplete =
+            !normalizedProfile.barangay ||
+            !normalizedProfile.municipality ||
+            !normalizedProfile.contact;
+
+          const dismissalKey = buildBannerStorageKey(normalizedProfile);
+
+          if (!isIncomplete) {
+            setShowProfileBanner(false);
+            if (typeof window !== "undefined" && dismissalKey) {
+              localStorage.removeItem(dismissalKey);
+            }
+          } else {
+            if (typeof window !== "undefined" && dismissalKey) {
+              const dismissed = localStorage.getItem(dismissalKey) === "true";
+              setShowProfileBanner(!dismissed);
+            } else {
+              setShowProfileBanner(true);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to fetch user profile", err);
@@ -352,24 +395,21 @@ export default function UserMapPage() {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    
-    // Limit to 5 images
+
     if (files.length > 5) {
       toast.error("Maximum 5 images allowed");
       return;
     }
 
-    // Check file sizes (5MB per image)
-    const invalidFiles = files.filter(file => file.size > 5 * 1024 * 1024);
+    const invalidFiles = files.filter((file) => file.size > 5 * 1024 * 1024);
     if (invalidFiles.length > 0) {
       toast.error("Each image must be less than 5MB");
       return;
     }
 
-    setReportForm({ ...reportForm, images: files });
+    setReportForm((prev) => ({ ...prev, images: files }));
 
-    // Generate previews
-    const previews = files.map(file => {
+    const previews = files.map((file) => {
       return new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -379,19 +419,52 @@ export default function UserMapPage() {
       });
     });
 
-    Promise.all(previews).then(setImagePreviews);
+    Promise.all(previews).then((resolved) => {
+      setImagePreviews(resolved);
+      setPreviewIndex(0);
+    });
   };
 
-  const removeImage = (index: number) => {
-    const newImages = reportForm.images.filter((_, i) => i !== index);
-    const newPreviews = imagePreviews.filter((_, i) => i !== index);
-    setReportForm({ ...reportForm, images: newImages });
-    setImagePreviews(newPreviews);
+  const handlePreviewNavigation = (direction: "next" | "prev") => {
+    if (imagePreviews.length <= 1) return;
+
+    setPreviewIndex((prev) => {
+      const total = imagePreviews.length;
+      return direction === "next"
+        ? (prev + 1) % total
+        : (prev - 1 + total) % total;
+    });
   };
 
-  const removeAllImages = () => {
-    setReportForm({ ...reportForm, images: [] });
-    setImagePreviews([]);
+  const handlePreviewClick = () => {
+    const current = imagePreviews[previewIndex];
+    if (!current) return;
+
+    if (typeof window !== "undefined") {
+      window.open(current, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleRemovePreview = (index: number) => {
+    setReportForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+
+    setImagePreviews((prevPreviews) => {
+      const nextPreviews = prevPreviews.filter((_, i) => i !== index);
+
+      setPreviewIndex((current) => {
+        if (nextPreviews.length === 0) return 0;
+        if (index < current) return Math.max(0, current - 1);
+        if (index === current) {
+          return Math.min(current, nextPreviews.length - 1);
+        }
+        return current;
+      });
+
+      return nextPreviews;
+    });
   };
 
   const handleReportSubmit = async (e: React.FormEvent) => {
@@ -465,6 +538,7 @@ export default function UserMapPage() {
           longitude: "",
         });
         setImagePreviews([]); // ✅ Clear previews
+        setPreviewIndex(0);
         setModalOpen(false);
       } else {
         const data = await res.json();
@@ -568,23 +642,22 @@ export default function UserMapPage() {
         {/* Profile Completion Banner */}
         {showProfileBanner && (
           <div className={styles.profileBanner}>
+            <button
+              className={styles.bannerClose}
+              onClick={handleDismissProfileBanner}
+              aria-label="Dismiss profile reminder"
+            >
+              ✕
+            </button>
             <div className={styles.bannerContent}>
-              <i className="fa-solid fa-circle-exclamation" style={{ marginRight: '10px', fontSize: '18px' }}></i>
-              <span>
+              <p className={styles.bannerText}>
                 Your profile is incomplete. Please update your barangay, municipality, and contact information.
-              </span>
-              <button 
+              </p>
+              <button
                 className={styles.bannerBtn}
                 onClick={() => router.push('/user-profile')}
               >
                 Complete Profile
-              </button>
-              <button 
-                className={styles.bannerClose}
-                onClick={() => setShowProfileBanner(false)}
-                aria-label="Dismiss"
-              >
-                ✖
               </button>
             </div>
           </div>
@@ -672,41 +745,70 @@ export default function UserMapPage() {
                     multiple // ✅ Enable multiple file selection
                     onChange={handleImageChange}
                   />
-                  
-                  <div className={styles.imagePreviewGrid}>
-                    {imagePreviews.slice(0, 4).map((preview, index) => {
-                      const isLastPreview = index === 3 && imagePreviews.length === 5;
-                      
-                      return (
-                        <div key={index} className={styles.previewItem}>
-                          <img 
-                            src={preview} 
-                            alt={`Preview ${index + 1}`}
-                            className={styles.previewImage}
-                            style={isLastPreview ? { filter: 'brightness(0.4)' } : {}}
-                          />
-                          
-                          {isLastPreview && (
-                            <div className={styles.overlayCount}>
-                              +1
-                            </div>
-                          )}
-                          
+                  <div className={`${styles.imagePreviewGrid} ${imagePreviews.length ? styles.hasImages : ""}`}>
+                    {imagePreviews.length > 0 ? (
+                      <div className={styles.previewFrame}>
+                        {imagePreviews.length > 1 && (
                           <button
                             type="button"
-                            className={styles.removePreviewBtn}
-                            onClick={() => removeImage(index)}
-                            aria-label="Remove image"
+                            className={`${styles.previewNav} ${styles.previewNavPrev}`}
+                            onClick={() => handlePreviewNavigation("prev")}
+                            aria-label="Previous image"
                           >
-                            ✖
+                            ‹
                           </button>
+                        )}
+
+                        <div
+                          className={styles.previewSlide}
+                          role="button"
+                          tabIndex={0}
+                          onClick={handlePreviewClick}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              handlePreviewClick();
+                            }
+                          }}
+                        >
+                          <img
+                            src={imagePreviews[previewIndex]}
+                            alt={`Preview ${previewIndex + 1}`}
+                            className={styles.previewImage}
+                          />
                         </div>
-                      );
-                    })}
-                    
-                    {imagePreviews.length === 0 && (
+
+                        {imagePreviews.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              className={`${styles.previewNav} ${styles.previewNavNext}`}
+                              onClick={() => handlePreviewNavigation("next")}
+                              aria-label="Next image"
+                            >
+                              ›
+                            </button>
+                            <span className={styles.previewCounter}>
+                              {previewIndex + 1}/{imagePreviews.length}
+                            </span>
+                          </>
+                        )}
+
+                        <button
+                          type="button"
+                          className={styles.removePreviewBtn}
+                          onClick={() => handleRemovePreview(previewIndex)}
+                          aria-label="Remove image"
+                        >
+                          ✖
+                        </button>
+                      </div>
+                    ) : (
                       <div className={styles.uploadPlaceholder}>
-                        <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '8px' }}></i>
+                        <i
+                          className="fa-solid fa-cloud-arrow-up"
+                          style={{ fontSize: '32px', color: '#94a3b8', marginBottom: '8px' }}
+                        ></i>
                         <p>Click to upload images</p>
                         <p style={{ fontSize: '12px', color: '#64748b' }}>Up to 5 images, 5MB each</p>
                       </div>

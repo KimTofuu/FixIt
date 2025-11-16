@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Report = require('../models/Report');
 const User = require('../models/Users');
 const ResolvedReport = require('../models/ResolvedReport'); // 1. Add this import
@@ -7,6 +8,94 @@ const reputationController = require('./reputationController');
 
 const Bytez = require('bytez.js');
 const bytezClient = new Bytez(process.env.BYTEZ_API_KEY);
+
+const resolveMongoIdString = (value) => {
+  if (!value && value !== 0) return undefined;
+
+  if (value instanceof mongoose.Types.ObjectId) {
+    return value.toString();
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === '[object Object]') return undefined;
+
+    const objectIdMatch = trimmed.match(/^ObjectId\((?:"|')?([0-9a-fA-F]{24})(?:"|')?\)$/);
+    if (objectIdMatch) return objectIdMatch[1];
+
+    if (/^[0-9a-fA-F]{24}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return resolveMongoIdString(parsed);
+      } catch (err) {
+        // ignore JSON parse error and fall through
+      }
+    }
+
+    return trimmed;
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    if (typeof value.$oid === 'string') {
+      return value.$oid;
+    }
+    if (typeof value._id === 'string' || value._id instanceof mongoose.Types.ObjectId) {
+      return resolveMongoIdString(value._id);
+    }
+    if (typeof value.id === 'string' || value.id instanceof mongoose.Types.ObjectId) {
+      return resolveMongoIdString(value.id);
+    }
+    if (typeof value.toString === 'function') {
+      const asString = value.toString();
+      if (asString && asString !== '[object Object]') {
+        return resolveMongoIdString(asString);
+      }
+    }
+  }
+
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+
+  return undefined;
+};
+
+const normalizeComments = (comments = []) => {
+  return comments.map((comment) => {
+    const commentObj = comment?.toObject ? comment.toObject() : { ...comment };
+    const normalizedId = resolveMongoIdString(commentObj._id || commentObj.id);
+    const normalizedUserId = resolveMongoIdString(commentObj.userId);
+    return {
+      ...commentObj,
+      _id: normalizedId || commentObj._id,
+      id: normalizedId || commentObj.id,
+      userId: normalizedUserId || commentObj.userId,
+    };
+  });
+};
+
+const findCommentById = (comments = [], rawCommentId) => {
+  const normalizedCommentId = resolveMongoIdString(rawCommentId);
+  if (!normalizedCommentId) return null;
+
+  if (mongoose.Types.ObjectId.isValid(normalizedCommentId)) {
+    const byObjectId = comments.id(normalizedCommentId);
+    if (byObjectId) {
+      return byObjectId;
+    }
+  }
+
+  return (
+    comments.find((comment) => {
+      const candidates = [comment?._id, comment?.id];
+      return candidates.some((candidate) => resolveMongoIdString(candidate) === normalizedCommentId);
+    }) || null
+  );
+};
 
 // Helper function to format reports with string IDs
 const formatReportsWithStringIds = (reports) => {
@@ -169,7 +258,14 @@ exports.updateReportStatus = async (req, res) => {
       isUrgent: originalReport.isUrgent || false, // ADDED
       user: originalReport.user,
       comments: (originalReport.comments || []).map(c => ({
-        author: c.author || 'Unknown', // FIXED: Now uses 'author' consistently
+        userId: c.userId,
+        user: c.user || c.author || 'Unknown',
+        fName: c.fName || '',
+        lName: c.lName || '',
+        email: c.email || '',
+        barangay: c.barangay || '',
+        municipality: c.municipality || '',
+        profilePicture: c.profilePicture || '',
         text: c.text || '',
         createdAt: c.createdAt || new Date()
       })),
@@ -405,20 +501,121 @@ exports.addComment = async (req, res) => {
     const reportId = req.params.id;
     const { text } = req.body;
     const userId = req.user?.userId || req.userId;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: 'Comment text is required' });
+    }
+
     const userDoc = await User.findById(userId);
+    if (!userDoc) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
     const comment = {
-      user: `${userDoc.fName} ${userDoc.lName}`,
-      text,
-      createdAt: new Date()
+      userId,
+      user: `${userDoc.fName || ''} ${userDoc.lName || ''}`.trim(),
+      fName: userDoc.fName || '',
+      lName: userDoc.lName || '',
+      email: userDoc.email || '',
+      barangay: userDoc.barangay || '',
+      municipality: userDoc.municipality || '',
+      profilePicture: userDoc.profilePicture?.url || '',
+      text: text.trim(),
+      createdAt: new Date(),
+      editedAt: null
     };
     const report = await Report.findByIdAndUpdate(
       reportId,
       { $push: { comments: comment } },
       { new: true }
     );
-    res.status(200).json(report.comments);
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    res.status(200).json(normalizeComments(report.comments));
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.updateComment = async (req, res) => {
+  try {
+    const { id: reportId, commentId } = req.params;
+    const { text } = req.body;
+    const userId = req.user?.userId || req.userId;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: 'Comment text is required' });
+    }
+
+    const report = await Report.findById(reportId);
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    const comment = findCommentById(report.comments, commentId);
+    if (!comment) {
+      return res.status(404).json({ message: 'Comment not found' });
+    }
+
+    const commentOwnerId = resolveMongoIdString(comment.userId);
+    if (!commentOwnerId || commentOwnerId !== String(userId)) {
+      return res.status(403).json({ message: 'You can only edit your own comments' });
+    }
+
+    comment.text = text.trim();
+    comment.editedAt = new Date();
+
+    await report.save();
+
+    const updatedReport = await Report.findById(reportId);
+
+    return res.status(200).json(normalizeComments(updatedReport?.comments || []));
+  } catch (err) {
+    console.error('updateComment error:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.deleteComment = async (req, res) => {
+  try {
+    const { id: reportId, commentId } = req.params;
+    const userId = req.user?.userId || req.userId;
+
+    const report = await Report.findById(reportId);
+    if (!report) {
+      return res.status(404).json({ message: 'Report not found' });
+    }
+
+    const comment = findCommentById(report.comments, commentId);
+    if (!comment) {
+      return res.status(404).json({ message: 'Comment not found' });
+    }
+
+    const commentOwnerId = resolveMongoIdString(comment.userId);
+    if (!commentOwnerId || commentOwnerId !== String(userId)) {
+      return res.status(403).json({ message: 'You can only delete your own comments' });
+    }
+
+    if (typeof comment.remove === 'function') {
+      comment.remove();
+    } else if (comment._id || comment.id) {
+      const targetId = resolveMongoIdString(comment._id || comment.id);
+      report.comments = report.comments.filter((current) => {
+        const currentId = resolveMongoIdString(current._id || current.id);
+        return currentId !== targetId;
+      });
+    }
+
+    await report.save();
+
+    const updatedReport = await Report.findById(reportId);
+
+    return res.status(200).json(normalizeComments(updatedReport?.comments || []));
+  } catch (err) {
+    console.error('deleteComment error:', err);
+    return res.status(500).json({ message: 'Server error' });
   }
 };
 

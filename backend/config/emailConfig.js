@@ -1,5 +1,6 @@
 // const formData = require('form-data');
 // const Mailgun = require('mailgun.js');
+const crypto = require('crypto');
 const brevo = require('@getbrevo/brevo');
 
 // const mailgun = new Mailgun(formData);
@@ -20,6 +21,42 @@ const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN;
 const FROM_EMAIL = process.env.MAILGUN_FROM_EMAIL || `noreply@${MAILGUN_DOMAIN}`;
 const FROM_EMAIL_BREVO = process.env.BREVO_FROM_EMAIL;
 const FROM_NAME_BREVO = process.env.BREVO_FROM_NAME || 'FixItPH';
+
+const buildOtpEmail = (otp, ownerName) => `
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+      <title>FixItPH Verification Code</title>
+      <style>
+        body { font-family: 'Inter', Arial, sans-serif; background: #f5f9fc; margin: 0; padding: 0; }
+        .wrapper { max-width: 560px; margin: 0 auto; padding: 32px 20px; }
+        .card { background: #ffffff; border-radius: 16px; box-shadow: 0 24px 56px rgba(7,18,42,0.12); padding: 32px 28px; }
+        .logo { text-align: center; margin-bottom: 24px; }
+        .headline { font-size: 22px; font-weight: 700; color: #111827; text-align: center; margin: 0 0 12px; }
+        .lead { font-size: 15px; color: #374151; text-align: center; margin: 0 0 18px; }
+        .otp { display: inline-block; background: linear-gradient(160deg, #00CCCB, #009fa0); color: #ffffff; font-size: 28px; letter-spacing: 6px; padding: 16px 32px; border-radius: 14px; font-weight: 700; }
+        .cta { text-align: center; margin: 24px 0 16px; }
+        .meta { font-size: 13px; color: #6b7280; line-height: 1.6; text-align: center; }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="card">
+          <div class="logo">
+            <img src="https://res.cloudinary.com/fixitph/image/upload/v1699212345/Fix-it_logo_3.png" alt="FixItPH" width="160" height="40" style="display:inline-block;" />
+          </div>
+          <p class="headline">Verify your email</p>
+          <p class="lead">Hi ${ownerName || 'there'}, use the code below to finish setting up your FixItPH account.</p>
+          <div class="cta">
+            <span class="otp">${otp}</span>
+          </div>
+          <p class="meta">This code expires in 5 minutes. If you didn’t request it, you can safely ignore this email.</p>
+        </div>
+      </div>
+    </body>
+  </html>
+`;
 
 /**
  * Send email using Mailgun
@@ -258,4 +295,12 @@ const emailTemplates = {
   }),
 };
 
-module.exports = { sendEmailMailgun, sendEmailBrevo, emailTemplates };
+const generateOtp = () => String(crypto.randomInt(100000, 1000000));
+
+const sendOtpEmail = async (to, otp, ownerName) => {
+  const subject = 'Your FixItPH verification code';
+  const html = buildOtpEmail(otp, ownerName);
+  return sendEmailBrevo(to, subject, html);
+};
+
+module.exports = { sendEmailMailgun, sendEmailBrevo, sendOtpEmail, generateOtp, emailTemplates };
