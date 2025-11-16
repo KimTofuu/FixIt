@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { sendEmail } = require('../utils/emailService'); // Add this import at the top
+const { sendEmailBrevo } = require('../config/emailConfig'); // Add this import at the top
 
 const userSchema = new mongoose.Schema({
   fName: {
@@ -317,7 +317,7 @@ userSchema.methods.checkAndAwardBadges = async function () {
         </div>
       `;
 
-      await sendEmail({
+      await sendEmailBrevo({
         to: this.email,
         subject: `🏆 Achievement Unlocked: ${newBadgesEarned.map(b => b.name).join(', ')}`,
         html: emailMessage,
