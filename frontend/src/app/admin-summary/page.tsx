@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import styles from './AdminSummary.module.css';
 import { toast } from 'react-toastify';
+import AdminLoader from "@/components/AdminLoader";
 import AdminNavbar from "@/components/AdminNavbar";
 import {
   Chart as ChartJS,
@@ -554,10 +555,7 @@ export default function AdminSummaryPage() {
 
         {isLoading ? (
           <div className={styles.summaryCard}>
-            <div className={styles.summaryLoader}>
-              <i className="fa-solid fa-spinner fa-spin"></i>
-              <p>Loading analytics data...</p>
-            </div>
+            <AdminLoader message="Loading analytics data..." className={styles.summaryLoader} />
           </div>
         ) : error ? (
           <div className={styles.summaryCard}>
@@ -569,28 +567,39 @@ export default function AdminSummaryPage() {
         ) : summaryData && (
           <div className={styles.summaryContainer}>
             {/* Statistics Cards */}
-            <div className={styles.statsGrid}>
-              <div className={styles.statCard}>
-                <i className={`fa-solid fa-file-lines ${styles.statIcon}`}></i>
-                <div className={styles.statNumber}>{summaryData.reportCount}</div>
-                <div className={styles.statLabel}>Total Reports</div>
-              </div>
-              <div className={styles.statCard}>
-                <i className={`fa-solid fa-exclamation-triangle ${styles.statIcon}`}></i>
-                <div className={styles.statNumber}>{summaryData.urgentCount}</div>
-                <div className={styles.statLabel}>Urgent Issues</div>
-              </div>
-              <div className={styles.statCard}>
-                <i className={`fa-solid fa-tags ${styles.statIcon}`}></i>
-                <div className={styles.statNumber}>{summaryData.categories.length}</div>
-                <div className={styles.statLabel}>Categories</div>
-              </div>
-              <div className={styles.statCard}>
-                <i className={`fa-solid fa-map-marker-alt ${styles.statIcon}`}></i>
-                <div className={styles.statNumber}>{summaryData.locations.length}</div>
-                <div className={styles.statLabel}>Locations</div>
-              </div>
-            </div>
+            <section className={styles.statsCardRow} aria-label="Summary metrics">
+              <article className={`${styles.metricCard} ${styles.total}`}>
+                <div className={styles.metricHeader}>
+                  <h4>Total Reports</h4>
+                  <span className={styles.metricSub}>All submitted cases</span>
+                </div>
+                <div className={styles.metricValue}>{summaryData.reportCount}</div>
+              </article>
+
+              <article className={`${styles.metricCard} ${styles.urgent}`}>
+                <div className={styles.metricHeader}>
+                  <h4>Urgent Issues</h4>
+                  <span className={styles.metricSub}>Flagged for priority</span>
+                </div>
+                <div className={styles.metricValue}>{summaryData.urgentCount}</div>
+              </article>
+
+              <article className={`${styles.metricCard} ${styles.categories}`}>
+                <div className={styles.metricHeader}>
+                  <h4>Categories</h4>
+                  <span className={styles.metricSub}>Distinct issue types</span>
+                </div>
+                <div className={styles.metricValue}>{summaryData.categories.length}</div>
+              </article>
+
+              <article className={`${styles.metricCard} ${styles.locations}`}>
+                <div className={styles.metricHeader}>
+                  <h4>Locations</h4>
+                  <span className={styles.metricSub}>Active communities</span>
+                </div>
+                <div className={styles.metricValue}>{summaryData.locations.length}</div>
+              </article>
+            </section>
 
             {/* Charts Grid */}
             <div className={styles.chartsGrid}>

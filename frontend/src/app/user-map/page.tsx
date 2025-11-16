@@ -8,7 +8,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { toast } from "react-toastify";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useLoader } from "@/context/LoaderContext";
 
 interface UserProfile {
   _id?: string;
@@ -56,7 +55,7 @@ export default function UserMapPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showProfileBanner, setShowProfileBanner] = useState(false);
-  const { showLoader, hideLoader } = useLoader();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const feedMapRef = useRef<L.Map | null>(null);
   const modalMapRef = useRef<L.Map | null>(null);
@@ -275,6 +274,8 @@ export default function UserMapPage() {
       }
     });
 
+    const locationCounts = new Map<string, number>();
+
     reports.forEach((r) => {
       if (r.latitude && r.longitude) {
         try {
@@ -287,7 +288,21 @@ export default function UserMapPage() {
             return;
           }
 
-          const m = L.marker([lat, lng], {
+          const key = `${lat.toFixed(5)}:${lng.toFixed(5)}`;
+          const occurrence = locationCounts.get(key) ?? 0;
+          locationCounts.set(key, occurrence + 1);
+
+          // Offset overlapping markers slightly so repeated coordinates stay visible
+          let markerLat = lat;
+          let markerLng = lng;
+          if (occurrence > 0) {
+            const angle = (occurrence * 45 * Math.PI) / 180;
+            const radius = 0.0002 * occurrence;
+            markerLat = lat + radius * Math.cos(angle);
+            markerLng = lng + radius * Math.sin(angle);
+          }
+
+          const m = L.marker([markerLat, markerLng], {
             icon: getIconByStatus(r.status),
           }).addTo(feedMap);
           
@@ -307,6 +322,7 @@ export default function UserMapPage() {
               <b>Status:</b> ${r.status}<br>
               <b>Location:</b> ${r.location}<br>
               ${imageCount > 0 ? `<b>Images:</b> ${imageCount}` : ''}
+              ${occurrence > 0 ? '<div style="margin-top:8px; font-size:12px; color:#64748b;">Pin offset from exact location to show overlapping reports.</div>' : ''}
             </div>
           `);
         } catch (error) {
@@ -479,7 +495,7 @@ export default function UserMapPage() {
       return;
     }
 
-    showLoader();
+    setIsSubmitting(true);
 
     try {
       const formData = new FormData();
@@ -547,7 +563,7 @@ export default function UserMapPage() {
     } catch (error) {
       toast.error("An error occurred while submitting the report.");
     } finally {
-      hideLoader();
+      setIsSubmitting(false);
     }
   };
 
@@ -576,6 +592,23 @@ export default function UserMapPage() {
           defer
         ></script>
       </Head>
+
+      {isSubmitting && (
+        <div className={styles.fullscreenSpinner} role="status" aria-live="polite">
+          <div className={styles.modalSpinnerShell}>
+            <div className={styles.modalSpinnerRing}></div>
+            <Image
+              src="/images/Fix-it_logo_3.png"
+              alt="FixIt loading"
+              width={64}
+              height={64}
+              className={styles.modalSpinnerLogo}
+              priority
+            />
+          </div>
+          <p className={styles.modalSpinnerLabel}>Submitting report…</p>
+        </div>
+      )}
 
       <header className={styles.overlayNav}>
         <nav className={styles.nav}>
@@ -688,7 +721,11 @@ export default function UserMapPage() {
             </button>
             <h2 className={styles.modalTitle}>Add Report</h2>
 
-            <form className={styles.formGrid} onSubmit={handleReportSubmit}>
+            <form
+              className={styles.formGrid}
+              onSubmit={handleReportSubmit}
+              aria-busy={isSubmitting}
+            >
               <div className={styles.formLeft}>
                 <input
                   className={styles.input}
@@ -852,7 +889,11 @@ export default function UserMapPage() {
               </div>
 
               <div className={styles.submitRow}>
-                <button type="submit" className={`${styles.submitBtn} btn btnPrimary`}>
+                <button
+                  type="submit"
+                  className={`${styles.submitBtn} btn btnPrimary`}
+                  disabled={isSubmitting}
+                >
                   Submit Report
                 </button>
               </div>

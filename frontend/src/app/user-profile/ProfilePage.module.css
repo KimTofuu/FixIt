@@ -10,6 +10,15 @@
   padding-left: calc(var(--user-sidebar, 13rem) + clamp(1.25rem, 3vw, 2.5rem));
 }
 
+.loadingState {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f8fb;
+  padding: clamp(1.75rem, 3vw, 2.75rem) clamp(1.25rem, 3vw, 2.5rem);
+}
+
 /* Unified left-sidebar navigation (modern style) */
 
 
@@ -335,7 +344,6 @@
 .pwStrength > i { display:block; height:100%; width:0%; background:linear-gradient(90deg,#ef4444,#f97316,#10b981); transition:width 240ms ease; }
 
 /* loading */
-.loading{ padding:24px; color:#6b7280; }
 
 /* ------------------ Responsive breakpoints ------------------ */
 

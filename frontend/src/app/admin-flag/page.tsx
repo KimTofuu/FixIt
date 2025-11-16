@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-import Head from "next/head";
 import Image from "next/image";
+import AdminLoader from "@/components/AdminLoader";
 import styles from "./admin-flag.module.css";
 import AdminNavbar from "@/components/AdminNavbar";
 
@@ -53,99 +53,15 @@ export default function AdminFlagPage() {
   const [selectedReport, setSelectedReport] = useState<FlaggedReport | null>(null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [filterReason, setFilterReason] = useState<string>("all");
-  
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentReportImages, setCurrentReportImages] = useState<string[]>([]);
+  const [confirmAction, setConfirmAction] = useState<{ type: "dismissAll" | "removeReport"; reportId: string } | null>(null);
   
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  const flagReasons = [
-    "Spam or misleading information",
-    "Inappropriate content",
-    "Duplicate report",
-    "False or fabricated issue",
-    "Not a community issue",
-    "Already resolved",
-    "Other"
-  ];
-
-  // ✅ Move all functions and hooks BEFORE any conditional returns
-  const openLightbox = (images: string[], index: number) => {
-    setCurrentReportImages(images);
-    setCurrentImageIndex(index);
-    setLightboxOpen(true);
-  };
-
-  const closeLightbox = () => {
-    setLightboxOpen(false);
-    setCurrentImageIndex(0);
-    setCurrentReportImages([]);
-  };
-
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => 
-      prev === currentReportImages.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => 
-      prev === 0 ? currentReportImages.length - 1 : prev - 1
-    );
-  };
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
-
-  // ✅ This useEffect must be before any conditional returns
-  useEffect(() => {
-    if (!lightboxOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowRight') nextImage();
-      if (e.key === 'ArrowLeft') prevImage();
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxOpen, currentReportImages.length]);
-
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem("token");
-      
-      console.log("🔐 Checking authentication...");
-      console.log("Token:", token ? "exists" : "missing");
-
-      if (!token) {
-        console.log("❌ No token, redirecting to login");
-        toast.error("Please login first");
-        router.push("/login");
-        return false;
-      }
-
-      console.log("✅ Authentication passed");
-      return true;
-    };
-
-    if (typeof window !== 'undefined') {
-      const isAuth = checkAuth();
-      if (isAuth) {
-        setIsAuthenticated(true);
-        fetchFlaggedReports();
-      }
-    }
-  }, []);
-
-  const fetchFlaggedReports = async () => {
+  const fetchFlaggedReports = useCallback(async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem("token");
@@ -185,7 +101,107 @@ export default function AdminFlagPage() {
     } finally {
       setIsLoading(false);
     }
+  }, [API, router]);
+
+  const flagReasons = [
+    "Spam or misleading information",
+    "Inappropriate content",
+    "Duplicate report",
+    "False or fabricated issue",
+    "Not a community issue",
+    "Already resolved",
+    "Other"
+  ];
+
+  // ✅ Move all functions and hooks BEFORE any conditional returns
+  const openLightbox = (images: string[], index: number) => {
+    setCurrentReportImages(images);
+    setCurrentImageIndex(index);
+    setLightboxOpen(true);
   };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setCurrentImageIndex(0);
+    setCurrentReportImages([]);
+  };
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => 
+      prev === currentReportImages.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => 
+      prev === 0 ? currentReportImages.length - 1 : prev - 1
+    );
+  };
+
+  const openConfirmModal = (type: "dismissAll" | "removeReport", reportId: string) => {
+    setConfirmAction({ type, reportId });
+  };
+
+  const closeConfirmModal = () => {
+    setConfirmAction(null);
+  };
+
+  const executeConfirmAction = () => {
+    if (!confirmAction) return;
+    const { type, reportId } = confirmAction;
+    closeConfirmModal();
+    if (type === "dismissAll") {
+      void handleDismissAllFlags(reportId);
+    } else {
+      void handleRemoveReport(reportId);
+    }
+  };
+
+  // ✅ This useEffect must be before any conditional returns
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowRight') nextImage();
+      if (e.key === 'ArrowLeft') prevImage();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen, currentReportImages.length]);
+
+  useEffect(() => {
+    if (!confirmAction) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setConfirmAction(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [confirmAction]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+
+    console.log("🔐 Checking authentication...");
+    console.log("Token:", token ? "exists" : "missing");
+
+    if (!token) {
+      console.log("❌ No token, redirecting to login");
+      toast.error("Please login first");
+      router.push("/login");
+      return;
+    }
+
+    console.log("✅ Authentication passed");
+    void fetchFlaggedReports();
+  }, [router, fetchFlaggedReports]);
 
   const handleDismissFlag = async (reportId: string, flagUserId: string) => {
     try {
@@ -203,7 +219,7 @@ export default function AdminFlagPage() {
 
       if (res.ok) {
         toast.success("Flag dismissed successfully");
-        fetchFlaggedReports();
+        void fetchFlaggedReports();
         if (selectedReport?._id === reportId) {
           setDetailsModalVisible(false);
           setSelectedReport(null);
@@ -218,10 +234,6 @@ export default function AdminFlagPage() {
   };
 
   const handleRemoveReport = async (reportId: string) => {
-    if (!confirm("Are you sure you want to remove this report? This action cannot be undone.")) {
-      return;
-    }
-
     try {
       const token = localStorage.getItem("token");
       
@@ -238,7 +250,7 @@ export default function AdminFlagPage() {
 
       if (res.ok) {
         toast.success("Report removed successfully");
-        fetchFlaggedReports();
+        void fetchFlaggedReports();
         setDetailsModalVisible(false);
         setSelectedReport(null);
       } else {
@@ -251,10 +263,6 @@ export default function AdminFlagPage() {
   };
 
   const handleDismissAllFlags = async (reportId: string) => {
-    if (!confirm("Are you sure you want to dismiss all flags for this report?")) {
-      return;
-    }
-
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${API}/reports/admin/${reportId}/dismiss-all-flags`, {
@@ -266,7 +274,7 @@ export default function AdminFlagPage() {
 
       if (res.ok) {
         toast.success("All flags dismissed successfully");
-        fetchFlaggedReports();
+        void fetchFlaggedReports();
         setDetailsModalVisible(false);
         setSelectedReport(null);
       } else {
@@ -315,24 +323,6 @@ export default function AdminFlagPage() {
     return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
   };
 
-  // ✅ NOW the conditional return is AFTER all hooks
-  if (!isAuthenticated) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-      }}>
-        <div style={{ textAlign: 'center', color: 'white' }}>
-          <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "48px", marginBottom: "16px" }}></i>
-          <p style={{ fontSize: "18px" }}>Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className={styles.adminFlagRoot}>
@@ -378,10 +368,7 @@ export default function AdminFlagPage() {
 
               <div id="admin-reportList" className={styles.reportList}>
                 {isLoading ? (
-                  <div className={styles.loadingState}>
-                    <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "32px", color: "#3b82f6" }}></i>
-                    <p>Loading flagged reports...</p>
-                  </div>
+                  <AdminLoader message="Loading flagged reports..." className={styles.loadingState} />
                 ) : filteredReports.length > 0 ? (
                   filteredReports.map((report) => (
                     <div className={styles.flagCard} key={report._id}>
@@ -460,14 +447,14 @@ export default function AdminFlagPage() {
                             </button>
                             <button
                               className={styles.dismissAllBtn}
-                              onClick={() => handleDismissAllFlags(report._id)}
+                              onClick={() => openConfirmModal("dismissAll", report._id)}
                             >
                               <i className="fa-solid fa-check"></i>
                               Dismiss All
                             </button>
                             <button
                               className={styles.removeBtn}
-                              onClick={() => handleRemoveReport(report._id)}
+                              onClick={() => openConfirmModal("removeReport", report._id)}
                             >
                               <i className="fa-solid fa-trash"></i>
                               Remove Report
@@ -687,15 +674,66 @@ export default function AdminFlagPage() {
               <div className={styles.modalActions}>
                 <button
                   className={styles.modalDismissBtn}
-                  onClick={() => handleDismissAllFlags(selectedReport._id)}
+                  onClick={() => openConfirmModal("dismissAll", selectedReport._id)}
                 >
                   Dismiss All Flags
                 </button>
                 <button
                   className={styles.modalRemoveBtn}
-                  onClick={() => handleRemoveReport(selectedReport._id)}
+                  onClick={() => openConfirmModal("removeReport", selectedReport._id)}
                 >
                   Remove Report
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {confirmAction && (
+          <div className={styles.modal} onClick={closeConfirmModal}>
+            <div
+              className={`${styles.modalContent} ${styles.confirmModalContent}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className={styles.closeBtn}
+                onClick={closeConfirmModal}
+                aria-label="Close confirmation modal"
+              >
+                &times;
+              </button>
+
+              <h2 className={styles.confirmModalTitle}>
+                {confirmAction.type === "dismissAll"
+                  ? "Dismiss all flags?"
+                  : "Remove report?"}
+              </h2>
+
+              <p className={styles.confirmModalMessage}>
+                {confirmAction.type === "dismissAll" ? (
+                  <>
+                    This will clear <span className={styles.confirmModalHighlight}>every flag</span> linked to this report. The report itself will stay available.
+                  </>
+                ) : (
+                  <>
+                    This will permanently remove the report for all users. <span className={styles.confirmModalHighlight}>This action cannot be undone.</span>
+                  </>
+                )}
+              </p>
+
+              <div className={styles.confirmModalActions}>
+                <button className={styles.confirmCancelBtn} onClick={closeConfirmModal}>
+                  Cancel
+                </button>
+                <button
+                  className={
+                    confirmAction.type === "dismissAll"
+                      ? styles.confirmDismissBtn
+                      : styles.confirmRemoveBtn
+                  }
+                  onClick={executeConfirmAction}
+                >
+                  {confirmAction.type === "dismissAll" ? "Dismiss Flags" : "Remove Report"}
                 </button>
               </div>
             </div>

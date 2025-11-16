@@ -5,14 +5,25 @@ import "leaflet/dist/leaflet.css";
 import styles from "./AdminReports.module.css";
 import Image from "next/image";
 import { toast } from "react-toastify";
+import AdminLoader from "@/components/AdminLoader";
 import AdminNavbar from "@/components/AdminNavbar";
 import { getAuthoritiesForCategory } from "@/data/authorities";
 import { useRouter } from "next/navigation";
 
-interface Comment {
-  user: string;
+interface ReportComment {
+  _id?: string;
+  id?: string;
+  userId?: string | { _id?: unknown; id?: unknown; $oid?: string } | null;
+  user?: string;
+  fName?: string;
+  lName?: string;
+  email?: string;
+  barangay?: string;
+  municipality?: string;
+  profilePicture?: string;
   text: string;
   createdAt?: string;
+  editedAt?: string | Date | null;
 }
 
 interface User {
@@ -36,7 +47,7 @@ interface Report {
   videos?: string[];
   isUrgent?: boolean;
   user?: User;
-  comments?: Comment[];
+  comments?: ReportComment[];
   summary?: string;
   resolvedAt?: string;
   originalReportId?: string;
@@ -57,6 +68,36 @@ const formatTimeAgo = (timestamp?: string): string => {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
+};
+
+const resolveIdString = (value: unknown): string | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "string" && value.trim() && value !== "[object Object]") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value.toString();
+  }
+  if (typeof value === "object") {
+    const obj = value as { [key: string]: unknown };
+    if (typeof obj.$oid === "string") {
+      return obj.$oid;
+    }
+    if (typeof (obj as { toString?: () => string }).toString === "function") {
+      const asString = (obj as { toString: () => string }).toString();
+      if (asString && asString !== "[object Object]") {
+        return asString;
+      }
+    }
+    const nestedKeys = ["_id", "id", "$id"];
+    for (const key of nestedKeys) {
+      const nested = resolveIdString(obj[key]);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return undefined;
 };
 
 export default function AdminReportsPage() {
@@ -80,8 +121,52 @@ export default function AdminReportsPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [currentReportImages, setCurrentReportImages] = useState<string[]>([]);
 
+  const [showCommenterModal, setShowCommenterModal] = useState(false);
+  const [activeCommenter, setActiveCommenter] = useState<ReportComment | null>(null);
+  const [openCommentMenu, setOpenCommentMenu] = useState<string | null>(null);
+  const [editingComment, setEditingComment] = useState<{ reportId: string; commentId: string } | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
+  const [pendingDeleteComment, setPendingDeleteComment] = useState<{ reportId: string; commentId: string; commentText?: string } | null>(null);
+
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const verificationEmail = "johnnabunturan1029384756@gmail.com"; // fallback only
+
+  const currentUserId: string | null = null;
+  const currentUserEmail: string | null = null;
+
+  const getCommenterFirstName = (comment: ReportComment) => {
+    if (comment.fName && comment.fName.trim().length > 0) {
+      return comment.fName.trim();
+    }
+    if (comment.user && comment.user.trim().length > 0) {
+      return comment.user.trim().split(" ")[0];
+    }
+    if (comment.lName && comment.lName.trim().length > 0) {
+      return comment.lName.trim();
+    }
+    return "Resident";
+  };
+
+  const getCommenterFullName = (comment: ReportComment) => {
+    const composed = `${comment.fName || ""} ${comment.lName || ""}`.trim();
+    if (composed.length > 0) {
+      return composed;
+    }
+    if (comment.user && comment.user.trim().length > 0) {
+      return comment.user.trim();
+    }
+    return getCommenterFirstName(comment);
+  };
+
+  const openCommenterModal = (comment: ReportComment) => {
+    setActiveCommenter(comment);
+    setShowCommenterModal(true);
+  };
+
+  const closeCommenterModal = () => {
+    setShowCommenterModal(false);
+    setActiveCommenter(null);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -155,8 +240,175 @@ export default function AdminReportsPage() {
     console.log("Bookmark toggled for:", id);
   };
 
-  const addComment = (reportId: string, text: string) => {
-    console.log(`New comment on ${reportId}: ${text}`);
+  const addComment = async (reportId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/comment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ text: trimmed }),
+      });
+
+      if (res.ok) {
+        const updatedComments = await res.json();
+        setReports((prev) =>
+          prev.map((report) =>
+            report._id === reportId ? { ...report, comments: updatedComments } : report
+          )
+        );
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.message || "Failed to add comment");
+      }
+    } catch (error) {
+      console.error("addComment error", error);
+      toast.error("Failed to add comment");
+    }
+  };
+
+  const updateComment = async (reportId: string, commentId: string, text: string) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/comment/${encodeURIComponent(commentId)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (res.ok) {
+        const updatedComments = await res.json();
+        setReports((prev) =>
+          prev.map((report) =>
+            report._id === reportId ? { ...report, comments: updatedComments } : report
+          )
+        );
+        toast.success("Comment updated");
+        setOpenCommentMenu(null);
+        setEditingComment(null);
+        setEditingCommentText("");
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.message || "Failed to update comment");
+      }
+    } catch (error) {
+      console.error("updateComment error", error);
+      toast.error("Failed to update comment");
+    }
+  };
+
+  const deleteComment = async (reportId: string, commentId: string) => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API}/reports/${reportId}/comment/${encodeURIComponent(commentId)}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      if (res.ok) {
+        const updatedComments = await res.json();
+        setReports((prev) =>
+          prev.map((report) =>
+            report._id === reportId ? { ...report, comments: updatedComments } : report
+          )
+        );
+        toast.success("Comment deleted");
+        if (editingComment && editingComment.commentId === commentId) {
+          setEditingComment(null);
+          setEditingCommentText("");
+        }
+        setOpenCommentMenu(null);
+        return true;
+      } else {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.message || "Failed to delete comment");
+        return false;
+      }
+    } catch (error) {
+      console.error("deleteComment error", error);
+      toast.error("Failed to delete comment");
+      return false;
+    }
+  };
+
+  const handleStartEditComment = (reportId: string, comment: ReportComment) => {
+    const commentId = resolveIdString(comment._id) || resolveIdString(comment.id);
+    if (!commentId) {
+      toast.error("Unable to edit this comment right now.");
+      return;
+    }
+    setEditingComment({ reportId, commentId });
+    setEditingCommentText(comment.text || "");
+    setOpenCommentMenu(null);
+  };
+
+  const handleCancelEditComment = () => {
+    setEditingComment(null);
+    setEditingCommentText("");
+  };
+
+  const handleSubmitEditedComment = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingComment) return;
+
+    const trimmed = editingCommentText.trim();
+    if (!trimmed) {
+      toast.error("Comment cannot be empty");
+      return;
+    }
+
+    const report = reports.find((r) => r._id === editingComment.reportId);
+    const existingComment = report?.comments?.find((c) => {
+      const commentId = resolveIdString(c._id) || resolveIdString(c.id);
+      return commentId === editingComment.commentId;
+    });
+
+    if (existingComment && (existingComment.text ?? "").trim() === trimmed) {
+      toast.info("No changes to save");
+      handleCancelEditComment();
+      return;
+    }
+
+    await updateComment(editingComment.reportId, editingComment.commentId, trimmed);
+  };
+
+  const handleRequestDeleteComment = (reportId: string, commentId?: string, commentText?: string) => {
+    if (!commentId) {
+      toast.error("Unable to delete this comment right now.");
+      return;
+    }
+
+    const normalizedCommentId = resolveIdString(commentId);
+    if (!normalizedCommentId) {
+      toast.error("Unable to delete this comment right now.");
+      return;
+    }
+
+    setOpenCommentMenu(null);
+    setPendingDeleteComment({ reportId, commentId: normalizedCommentId, commentText });
+  };
+
+  const handleCancelDeleteComment = () => {
+    setPendingDeleteComment(null);
+  };
+
+  const handleConfirmDeleteComment = async () => {
+    if (!pendingDeleteComment) return;
+    const { reportId, commentId } = pendingDeleteComment;
+    const success = await deleteComment(reportId, commentId);
+    if (success) {
+      setPendingDeleteComment(null);
+    }
   };
 
   const handleApproveReport = async (reportId: string) => {
@@ -315,6 +567,34 @@ export default function AdminReportsPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxOpen, currentReportImages.length]);
 
+  useEffect(() => {
+    if (!showCommenterModal) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeCommenterModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [showCommenterModal]);
+
+  useEffect(() => {
+    if (!openCommentMenu) return;
+
+    const handleClickAway = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest(`[data-comment-menu-key="${openCommentMenu}"]`)) {
+        return;
+      }
+      setOpenCommentMenu(null);
+    };
+
+    document.addEventListener('click', handleClickAway);
+    return () => document.removeEventListener('click', handleClickAway);
+  }, [openCommentMenu]);
+
   // Authorities are now managed in a shared module and editable via Admin Authorities page
   const getAuthoritiesForReport = async (report: Report) => {
     try {
@@ -445,7 +725,7 @@ export default function AdminReportsPage() {
 
             <div id="admin-reportList" className={styles.reportList} role="region" aria-label="Reports list">
               {isLoading ? (
-                <p className={styles.loadingText}>Loading reports...</p>
+                <AdminLoader message="Loading reports..." className={styles.loadingText} />
               ) : filteredReports.length > 0 ? (
                 filteredReports.map((r) => (
                   <div className={styles.adminReportCard} key={r._id}>
@@ -598,26 +878,140 @@ export default function AdminReportsPage() {
                       <div className={styles.reportComments}>
                         <h4 className={styles.commentsTitle}>Comments</h4>
                         <ul className={styles.commentList}>
-                          {(r.comments ?? []).map((c, idx) => (
-                            <li key={idx} className={styles.commentItem}>
-                              <b>{c.user}:</b> {c.text}
-                              {c.createdAt && (
-                                <span className={styles.commentTime}>
-                                  {new Date(c.createdAt).toLocaleString()}
-                                </span>
-                              )}
-                            </li>
-                          ))}
+                          {(r.comments ?? []).map((c, idx) => {
+                            const firstName = getCommenterFirstName(c);
+                            const commentOwnerId = resolveIdString(c.userId);
+                            const commentId = resolveIdString(c._id) || resolveIdString(c.id) || "";
+                            const commentMenuKey = `${r._id}:${commentId || idx}`;
+                            const ownsById = Boolean(
+                              currentUserId && commentOwnerId && String(commentOwnerId) === String(currentUserId)
+                            );
+                            const commentEmail = c.email ? c.email.toLowerCase() : null;
+                            const ownsByEmail = Boolean(
+                              currentUserEmail && commentEmail && commentEmail === currentUserEmail
+                            );
+                            const canManageComment = Boolean(commentId && (ownsById || ownsByEmail));
+                            const isEditing =
+                              canManageComment &&
+                              editingComment?.reportId === r._id &&
+                              editingComment.commentId === commentId;
+                            const createdLabel = c.createdAt ? new Date(c.createdAt).toLocaleString() : null;
+                            const editedLabel = c.editedAt ? new Date(c.editedAt).toLocaleString() : null;
+
+                            return (
+                              <li key={c._id ?? `${r._id}-comment-${idx}`} className={styles.commentItem}>
+                                <div className={styles.commentHeader}>
+                                  <div className={styles.commentHeaderMain}>
+                                    <button
+                                      type="button"
+                                      className={styles.commentAuthor}
+                                      onClick={() => openCommenterModal(c)}
+                                      aria-label={`View ${firstName}'s details`}
+                                    >
+                                      {firstName}
+                                    </button>
+                                    {createdLabel && (
+                                      <span className={styles.commentTimestamp}>{createdLabel}</span>
+                                    )}
+                                    {c.editedAt && (
+                                      <span
+                                        className={styles.commentEdited}
+                                        title={editedLabel ? `Edited ${editedLabel}` : "Edited"}
+                                      >
+                                        Edited
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {canManageComment && (
+                                    <div className={styles.commentMenu} data-comment-menu-key={commentMenuKey}>
+                                      <button
+                                        type="button"
+                                        className={styles.commentMenuButton}
+                                        aria-label="Comment options"
+                                        aria-haspopup="true"
+                                        aria-expanded={openCommentMenu === commentMenuKey}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setOpenCommentMenu((prev) =>
+                                            prev === commentMenuKey ? null : commentMenuKey
+                                          );
+                                        }}
+                                      >
+                                        <span className={styles.commentMenuIcon} aria-hidden="true">⋮</span>
+                                      </button>
+
+                                      {openCommentMenu === commentMenuKey && (
+                                        <div
+                                          className={styles.commentMenuPanel}
+                                          role="menu"
+                                          onClick={(event) => event.stopPropagation()}
+                                        >
+                                          <button
+                                            type="button"
+                                            className={styles.commentMenuAction}
+                                            role="menuitem"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleStartEditComment(r._id, c);
+                                            }}
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={`${styles.commentMenuAction} ${styles.commentMenuDanger}`}
+                                            role="menuitem"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              handleRequestDeleteComment(r._id, commentId, c.text);
+                                            }}
+                                          >
+                                            Delete
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {isEditing ? (
+                                  <form className={styles.commentEditForm} onSubmit={handleSubmitEditedComment}>
+                                    <textarea
+                                      className={styles.commentEditTextarea}
+                                      value={editingCommentText}
+                                      onChange={(event) => setEditingCommentText(event.target.value)}
+                                      rows={3}
+                                    />
+                                    <div className={styles.commentEditActions}>
+                                      <button
+                                        type="button"
+                                        className={styles.commentEditCancel}
+                                        onClick={handleCancelEditComment}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="submit"
+                                        className={`${styles.commentEditButton} btn btnPrimary`}
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </form>
+                                ) : (
+                                  <p className={styles.commentText}>{c.text}</p>
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                         <input
                           type="text"
                           className={styles.commentInput}
                           placeholder="Add a comment..."
                           onKeyDown={(e) => {
-                            if (
-                              e.key === "Enter" &&
-                              e.currentTarget.value.trim() !== ""
-                            ) {
+                            if (e.key === "Enter" && e.currentTarget.value.trim() !== "") {
                               addComment(r._id, e.currentTarget.value);
                               e.currentTarget.value = "";
                             }
@@ -634,6 +1028,110 @@ export default function AdminReportsPage() {
           </div>
         </main>
       </div>
+
+      {showCommenterModal && activeCommenter && (
+        <div
+          className={styles.commenterOverlay}
+          role="dialog"
+          aria-modal="true"
+          onClick={closeCommenterModal}
+        >
+          <div
+            className={styles.commenterCard}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.commenterClose}
+              onClick={closeCommenterModal}
+              aria-label="Close commenter details"
+            >
+              ✕
+            </button>
+            <div className={styles.commenterHeader}>
+              {activeCommenter.profilePicture ? (
+                <Image
+                  src={activeCommenter.profilePicture}
+                  alt={`${getCommenterFullName(activeCommenter)} avatar`}
+                  width={64}
+                  height={64}
+                  className={styles.commenterAvatar}
+                />
+              ) : (
+                <div className={styles.commenterAvatarFallback}>
+                  {getCommenterFirstName(activeCommenter).charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h3 className={styles.commenterName}>{getCommenterFullName(activeCommenter)}</h3>
+                {activeCommenter.email && (
+                  <p className={styles.commenterSub}>{activeCommenter.email}</p>
+                )}
+              </div>
+            </div>
+            <div className={styles.commenterBody}>
+              {activeCommenter.barangay && (
+                <p className={styles.commenterField}>
+                  <span>Barangay</span>
+                  <strong>{activeCommenter.barangay}</strong>
+                </p>
+              )}
+              {activeCommenter.municipality && (
+                <p className={styles.commenterField}>
+                  <span>Municipality</span>
+                  <strong>{activeCommenter.municipality}</strong>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteComment && (
+        <div
+          className={styles.commentConfirmOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="deleteAdminCommentTitle"
+          onClick={handleCancelDeleteComment}
+        >
+          <div
+            className={styles.commentConfirmCard}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.commentConfirmHeader}>
+              <span className={styles.commentConfirmIcon} aria-hidden="true">🗑️</span>
+              <div>
+                <h3 id="deleteAdminCommentTitle" className={styles.commentConfirmTitle}>Delete comment?</h3>
+                <p className={styles.commentConfirmSubtitle}>This action cannot be undone.</p>
+              </div>
+            </div>
+            {pendingDeleteComment.commentText && (
+              <blockquote className={styles.commentConfirmQuote}>
+                {pendingDeleteComment.commentText.length > 160
+                  ? `${pendingDeleteComment.commentText.slice(0, 160)}…`
+                  : pendingDeleteComment.commentText}
+              </blockquote>
+            )}
+            <div className={styles.commentConfirmActions}>
+              <button
+                type="button"
+                className={styles.commentConfirmCancel}
+                onClick={handleCancelDeleteComment}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.commentConfirmDelete}
+                onClick={handleConfirmDeleteComment}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {rejectModalOpen && (
         <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Reject report">

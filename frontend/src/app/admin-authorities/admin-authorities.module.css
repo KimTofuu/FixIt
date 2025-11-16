@@ -16,6 +16,7 @@
 .main { margin-left: 12rem; padding: 28px; }
 
 .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 22px 12px 22px; }
+.cardLoader { display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 48px 0; }
 
 .headerRow {
   display: flex;

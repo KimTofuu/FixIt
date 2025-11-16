@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import AdminLoader from "@/components/AdminLoader";
 import AdminNavbar from "@/components/AdminNavbar";
 import styles from "./admin-authorities.module.css";
 import { useRouter } from "next/navigation";
@@ -28,30 +29,32 @@ export default function AdminAuthoritiesPage() {
   const [draftNew, setDraftNew] = useState<Record<string, { name: string; department: string; email: string }>>({});
   const [removeMode, setRemoveMode] = useState<Record<string, boolean>>({});
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
-
-  useEffect(() => {
-    fetchAuthorities();
-  }, []);
-
-  const fetchAuthorities = async () => {
+  const fetchAuthorities = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/authorities`);
       const data = await res.json();
       setAuthorities(data);
     } catch (error) {
-      console.error('Error fetching authorities:', error);
+      console.error("Error fetching authorities:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_URL]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    void fetchAuthorities();
+  }, [router, fetchAuthorities]);
 
   // Group by class from the Authority model
   const authoritiesByCategory = useMemo<AuthoritiesByCategory>(() => {
@@ -184,8 +187,6 @@ export default function AdminAuthoritiesPage() {
     return out;
   }, [authoritiesByCategory, search]);
 
-  if (loading) return <div>Loading...</div>;
-
   return (
     <div className={styles.pageRoot}>
       <AdminNavbar active="authorities" />
@@ -204,7 +205,11 @@ export default function AdminAuthoritiesPage() {
             </div>
           </div>
 
-          {Object.keys(filtered).length === 0 ? (
+          {loading ? (
+            <div className={styles.cardLoader}>
+              <AdminLoader message="Loading authorities..." />
+            </div>
+          ) : Object.keys(filtered).length === 0 ? (
             <p className={styles.empty}>No authorities found.</p>
           ) : (
             <div className={styles.listWrap}>

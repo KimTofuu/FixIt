@@ -30,6 +30,9 @@ interface Report {
 
 type StatusFilter = "Reported" | "Processing" | "Resolved" | "All";
 
+const isAwaitingApproval = (status?: string) =>
+  typeof status === "string" && status.toLowerCase().includes("awaiting");
+
 export default function AdminMapPage() {
   const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
@@ -172,17 +175,21 @@ export default function AdminMapPage() {
       }
     });
 
+    const activeReports = reports.filter((r) => !isAwaitingApproval(r.status));
+    const activeResolved = resolvedReports.filter((r) => !isAwaitingApproval(r.status));
+
     let reportsToShow: Report[] = [];
     if (filterStatus === "Resolved") {
-      reportsToShow = resolvedReports;
+      reportsToShow = activeResolved;
     } else if (filterStatus === "All") {
-      const nonResolved = reports.filter((r) => r.status !== "Resolved");
+      const nonResolved = activeReports.filter((r) => r.status !== "Resolved");
       reportsToShow = [...nonResolved];
     } else {
-      reportsToShow = reports.filter((report) => report.status === filterStatus);
+      reportsToShow = activeReports.filter((report) => report.status === filterStatus);
     }
 
     reportsToShow.forEach((report: Report) => {
+      if (isAwaitingApproval(report.status)) return;
       if (report.latitude != null && report.longitude != null) {
         const lat = parseFloat(String(report.latitude));
         const lng = parseFloat(String(report.longitude));

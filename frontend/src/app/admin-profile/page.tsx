@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { toast } from "react-toastify";
+import AdminLoader from "@/components/AdminLoader";
 import styles from "./admin-profile.module.css";
 import AdminNavbar from "@/components/AdminNavbar";
 import { useRouter } from "next/navigation";
@@ -147,7 +148,7 @@ export default function ProfilePage() {
         <div className={styles.reportsPage}>
           <main className={styles.mainContainer}>
             <div className={styles.contentCard}>
-              <p style={{ textAlign: "center", padding: "2rem" }}>Loading profile...</p>
+              <AdminLoader message="Loading profile..." fullHeight />
             </div>
           </main>
         </div>

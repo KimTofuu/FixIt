@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Head from "next/head";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import styles from "./ProfilePage.module.css";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
+import AdminLoader from "@/components/AdminLoader";
 
 interface Badge {
   name: string;
@@ -142,36 +143,35 @@ export default function ProfilePage() {
   const defaultProfilePic = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token =
-          typeof window !== "undefined"
-            ? localStorage.getItem("token")
-            : null;
-        const res = await fetch(`${API}/users/me`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (!res.ok) {
-          console.warn("Failed to load profile:", res.status);
-          return;
-        }
-        const data = await res.json();
-        setProfile(normalizeProfileData(data));
-      } catch (err) {
-        console.error("Error fetching profile:", err);
+  const fetchProfile = useCallback(async () => {
+    try {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const res = await fetch(`${API}/users/me`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) {
+        console.warn("Failed to load profile:", res.status);
+        return;
       }
-    };
-
-    fetchProfile();
+      const data = await res.json();
+      setProfile(normalizeProfileData(data));
+    } catch (err) {
+      console.error("Error fetching profile:", err);
+    }
   }, [API]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    void fetchProfile();
+  }, [router, fetchProfile]);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -584,7 +584,13 @@ export default function ProfilePage() {
     setShowBadgeModal(true);
   };
 
-  if (!profile) return <div className={styles.loading}>Loading profile...</div>;
+  if (!profile) {
+    return (
+      <div className={styles.loadingState}>
+        <AdminLoader fullHeight message="Loading profile..." />
+      </div>
+    );
+  }
 
   const profilePicUrl = profile?.profilePicture?.url || defaultProfilePic;
 
