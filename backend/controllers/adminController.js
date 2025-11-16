@@ -885,6 +885,7 @@ exports.notifyAuthority = async (req, res) => {
       reportedAt: report.createdAt || report.timestamp,
       imageUrl: report.images?.[0] || report.imageUrl || report.image || null,
       reportId: report._id,
+      isUrgent: report.isUrgent || false,
     };
 
     // Create Google Maps link if coordinates are available
@@ -892,112 +893,17 @@ exports.notifyAuthority = async (req, res) => {
       ? `https://www.google.com/maps?q=${reportDetails.latitude},${reportDetails.longitude}`
       : null;
 
-    // Create email content
+    // ✅ Use email template from emailConfig
     const authorityName = authority ? authority.authorityName : 'Concerned Authority';
-    const emailSubject = `🚨 New Report Forwarded: ${report.title}`;
-    
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-          .report-card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .label { font-weight: bold; color: #667eea; margin-top: 15px; }
-          .value { margin: 5px 0 15px 0; }
-          .coordinates { background: #f0f4ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
-          .image-container { text-align: center; margin: 20px 0; }
-          .report-image { max-width: 100%; border-radius: 8px; }
-          .badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-          .urgent { background: #ff4444; color: white; }
-          .normal { background: #4CAF50; color: white; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .map-button { display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>🚨 New Report Forwarded</h1>
-            <p>FixItPH Community Report System</p>
-          </div>
-          
-          <div class="content">
-            <p>Dear ${authorityName},</p>
-            
-            <p>A new community report has been forwarded to your attention by <strong>${admin.barangayName}</strong>.</p>
-            
-            <div class="report-card">
-              <h2 style="margin-top: 0; color: #667eea;">${reportDetails.title}</h2>
-              
-              <span class="badge ${report.isUrgent ? 'urgent' : 'normal'}">
-                ${report.isUrgent ? '🔴 URGENT' : '✅ Normal Priority'}
-              </span>
-              
-              <div class="label">📍 Location:</div>
-              <div class="value">${reportDetails.location}</div>
-              
-              ${(reportDetails.latitude && reportDetails.longitude) ? `
-                <div class="coordinates">
-                  <div class="label">🌐 GPS Coordinates:</div>
-                  <div class="value">
-                    <strong>Latitude:</strong> ${reportDetails.latitude}<br>
-                    <strong>Longitude:</strong> ${reportDetails.longitude}
-                  </div>
-                  <a href="${mapsLink}" target="_blank" class="map-button">
-                    📍 View on Google Maps
-                  </a>
-                </div>
-              ` : ''}
-              
-              <div class="label">📂 Category:</div>
-              <div class="value">${reportDetails.category}</div>
-              
-              <div class="label">📝 Description:</div>
-              <div class="value">${reportDetails.description}</div>
-              
-              <div class="label">👤 Reported By:</div>
-              <div class="value">${reportDetails.reportedBy}</div>
-              
-              <div class="label">📅 Reported At:</div>
-              <div class="value">${new Date(reportDetails.reportedAt).toLocaleString()}</div>
-              
-              <div class="label">🆔 Report ID:</div>
-              <div class="value">${reportDetails.reportId}</div>
-              
-              ${reportDetails.imageUrl ? `
-                <div class="image-container">
-                  <div class="label">📷 Attached Image:</div>
-                  <img src="${reportDetails.imageUrl}" alt="Report Image" class="report-image" />
-                </div>
-              ` : ''}
-            </div>
-            
-            <p style="margin-top: 30px;">
-              <strong>Action Required:</strong> Please review this report and take appropriate action as per your department's protocols.
-            </p>
-            
-            <div class="footer">
-              <p>This is an automated notification from FixItPH</p>
-              <p>Forwarded by: ${admin.barangayName} (${admin.officialEmail})</p>
-              <p>Contact: ${admin.officialContact || 'N/A'}</p>
-              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;" />
-              <p style="font-size: 11px; color: #999;">
-                If you believe this report was sent to you in error, please contact the barangay office.
-              </p>
-            </div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    const emailContent = emailTemplates.notifyAuthority(authorityName, reportDetails, admin, mapsLink);
 
-    // Send email to authority
-    await sendEmail(authorityEmail, emailSubject, emailHtml);
+    // ✅ Send email using template
+    await sendEmailBrevo(
+      authorityEmail,
+      emailContent.subject,
+      emailContent.html
+    );
+    
     console.log(`✅ Report sent to ${authorityEmail}`);
 
     // Optional: Update report to track that it was forwarded

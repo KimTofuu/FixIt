@@ -17,9 +17,9 @@ let apiInstance = new brevo.TransactionalEmailsApi();
 let apiKey = apiInstance.authentications['apiKey'];
 apiKey.apiKey = process.env.BREVO_API_KEY;
 
-const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN;
-const FROM_EMAIL = process.env.MAILGUN_FROM_EMAIL || `noreply@${MAILGUN_DOMAIN}`;
-const FROM_EMAIL_BREVO = process.env.BREVO_FROM_EMAIL;
+// const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN;
+// const FROM_EMAIL = process.env.MAILGUN_FROM_EMAIL || `noreply@${MAILGUN_DOMAIN}`;
+const FROM_EMAIL_BREVO = process.env.BREVO_FROM_EMAIL || 'fixitph0@gmail.com';
 const FROM_NAME_BREVO = process.env.BREVO_FROM_NAME || 'FixItPH';
 
 const buildOtpEmail = (otp, ownerName) => `
@@ -64,26 +64,26 @@ const buildOtpEmail = (otp, ownerName) => `
  * @param {string} subject - Email subject
  * @param {string} html - HTML content
  */
-const sendEmailMailgun = async (to, subject, html) => {
-  try {
-    console.log(`📧 Sending email to ${to} using Mailgun...`);
+// const sendEmailMailgun = async (to, subject, html) => {
+//   try {
+//     console.log(`📧 Sending email to ${to} using Mailgun...`);
     
-    const messageData = {
-      from: `FixItPH <${FROM_EMAIL}>`,
-      to: to,
-      subject: subject,
-      html: html,
-    };
+//     const messageData = {
+//       from: `FixItPH <${FROM_EMAIL}>`,
+//       to: to,
+//       subject: subject,
+//       html: html,
+//     };
 
-    const response = await mg.messages.create(MAILGUN_DOMAIN, messageData);
+//     const response = await mg.messages.create(MAILGUN_DOMAIN, messageData);
     
-    console.log('✅ Email sent successfully via Mailgun:', response.id);
-    return response;
-  } catch (error) {
-    console.error('❌ Failed to send email via Mailgun:', error);
-    throw error;
-  }
-};
+//     console.log('✅ Email sent successfully via Mailgun:', response.id);
+//     return response;
+//   } catch (error) {
+//     console.error('❌ Failed to send email via Mailgun:', error);
+//     throw error;
+//   }
+// };
 
 /**
  * Send email using Brevo
@@ -95,6 +95,19 @@ const sendEmailBrevo = async (to, subject, html) => {
   try {
     console.log(`📧 Sending email to ${to} using Brevo...`);
     
+    if (!process.env.BREVO_API_KEY) {
+      throw new Error('BREVO_API_KEY is not configured in environment variables');
+    }
+
+    // ✅ Create new API instance each time to ensure fresh authentication
+    const apiInstance = new brevo.TransactionalEmailsApi();
+    
+    // ✅ Set authentication
+    apiInstance.setApiKey(
+      brevo.TransactionalEmailsApiApiKeys.apiKey,
+      process.env.BREVO_API_KEY
+    );
+
     let sendSmtpEmail = new brevo.SendSmtpEmail();
     
     sendSmtpEmail.sender = { name: FROM_NAME_BREVO, email: FROM_EMAIL_BREVO };
@@ -164,7 +177,6 @@ const emailTemplates = {
     `
   }),
 
-  // ✅ Add this template too
   thankFlagger: (ownerName, reportTitle) => ({
     subject: `✅ Thank You for Flagging - ${reportTitle}`,
     html: `
@@ -207,7 +219,6 @@ const emailTemplates = {
     `
   }),
 
-  // ✅ Add suspension templates
   userSuspended: (ownerName, reason) => ({
     subject: `🚫 Your FixItPH Account Has Been Suspended`,
     html: `
@@ -293,6 +304,110 @@ const emailTemplates = {
       </html>
     `
   }),
+
+  // ✅ Add this new template
+  notifyAuthority: (authorityName, reportDetails, admin, mapsLink) => ({
+    subject: `🚨 New Report Forwarded: ${reportDetails.title}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .report-card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .label { font-weight: bold; color: #667eea; margin-top: 15px; }
+          .value { margin: 5px 0 15px 0; }
+          .coordinates { background: #f0f4ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
+          .image-container { text-align: center; margin: 20px 0; }
+          .report-image { max-width: 100%; border-radius: 8px; }
+          .badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+          .urgent { background: #ff4444; color: white; }
+          .normal { background: #4CAF50; color: white; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .map-button { display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🚨 New Report Forwarded</h1>
+            <p>FixItPH Community Report System</p>
+          </div>
+          
+          <div class="content">
+            <p>Dear ${authorityName},</p>
+            
+            <p>A new community report has been forwarded to your attention by <strong>${admin.barangayName}</strong>.</p>
+            
+            <div class="report-card">
+              <h2 style="margin-top: 0; color: #667eea;">${reportDetails.title}</h2>
+              
+              <span class="badge ${reportDetails.isUrgent ? 'urgent' : 'normal'}">
+                ${reportDetails.isUrgent ? '🔴 URGENT' : '✅ Normal Priority'}
+              </span>
+              
+              <div class="label">📍 Location:</div>
+              <div class="value">${reportDetails.location}</div>
+              
+              ${(reportDetails.latitude && reportDetails.longitude) ? `
+                <div class="coordinates">
+                  <div class="label">🌐 GPS Coordinates:</div>
+                  <div class="value">
+                    <strong>Latitude:</strong> ${reportDetails.latitude}<br>
+                    <strong>Longitude:</strong> ${reportDetails.longitude}
+                  </div>
+                  <a href="${mapsLink}" target="_blank" class="map-button">
+                    📍 View on Google Maps
+                  </a>
+                </div>
+              ` : ''}
+              
+              <div class="label">📂 Category:</div>
+              <div class="value">${reportDetails.category}</div>
+              
+              <div class="label">📝 Description:</div>
+              <div class="value">${reportDetails.description}</div>
+              
+              <div class="label">👤 Reported By:</div>
+              <div class="value">${reportDetails.reportedBy}</div>
+              
+              <div class="label">📅 Reported At:</div>
+              <div class="value">${new Date(reportDetails.reportedAt).toLocaleString()}</div>
+              
+              <div class="label">🆔 Report ID:</div>
+              <div class="value">${reportDetails.reportId}</div>
+              
+              ${reportDetails.imageUrl ? `
+                <div class="image-container">
+                  <div class="label">📷 Attached Image:</div>
+                  <img src="${reportDetails.imageUrl}" alt="Report Image" class="report-image" />
+                </div>
+              ` : ''}
+            </div>
+            
+            <p style="margin-top: 30px;">
+              <strong>Action Required:</strong> Please review this report and take appropriate action as per your department's protocols.
+            </p>
+            
+            <div class="footer">
+              <p>This is an automated notification from FixItPH</p>
+              <p>Forwarded by: ${admin.barangayName} (${admin.officialEmail})</p>
+              <p>Contact: ${admin.officialContact || 'N/A'}</p>
+              <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;" />
+              <p style="font-size: 11px; color: #999;">
+                If you believe this report was sent to you in error, please contact the barangay office.
+              </p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+  }),
 };
 
 const generateOtp = () => String(crypto.randomInt(100000, 1000000));
@@ -303,4 +418,4 @@ const sendOtpEmail = async (to, otp, ownerName) => {
   return sendEmailBrevo(to, subject, html);
 };
 
-module.exports = { sendEmailMailgun, sendEmailBrevo, sendOtpEmail, generateOtp, emailTemplates };
+module.exports = { sendEmailBrevo, sendOtpEmail, generateOtp, emailTemplates };
