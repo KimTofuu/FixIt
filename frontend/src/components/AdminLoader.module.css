@@ -1,0 +1,65 @@
+.loaderRoot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  color: #1f2937;
+}
+
+.fullHeight {
+  min-height: 60vh;
+}
+
+.spinner {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 6px solid rgba(37, 99, 235, 0.18);
+  border-top-color: #2563eb;
+  animation: spin 0.9s linear infinite;
+}
+
+.spinnerCompact {
+  width: 72px;
+  height: 72px;
+}
+
+.spinnerCompact::before {
+  border-width: 5px;
+}
+
+.logo {
+  width: 64px;
+  height: auto;
+}
+
+.logoCompact {
+  width: 44px;
+}
+
+.message {
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

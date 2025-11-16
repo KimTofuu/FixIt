@@ -1,7 +1,8 @@
 "use client";
 
-import { useLoader } from '@/context/LoaderContext';
-import styles from './GlobalLoader.module.css';
+import AdminLoader from "@/components/AdminLoader";
+import { useLoader } from "@/context/LoaderContext";
+import styles from "./GlobalLoader.module.css";
 
 const GlobalLoader = () => {
   const { isLoading } = useLoader();
@@ -12,7 +13,7 @@ const GlobalLoader = () => {
 
   return (
     <div className={styles.backdrop}>
-      <div className={styles.spinner}></div>
+      <AdminLoader message="Loading..." />
     </div>
   );
 };

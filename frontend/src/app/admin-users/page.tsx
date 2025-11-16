@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import Head from "next/head";
 import Image from "next/image";
+import AdminLoader from "@/components/AdminLoader";
 import styles from "./admin-users.module.css";
 import AdminNavbar from "@/components/AdminNavbar";
 
@@ -45,34 +46,10 @@ export default function AdminUserListPage() {
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [userToSuspend, setUserToSuspend] = useState<string | null>(null);
   const [viewingUser, setViewingUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-    }
-  }, [router]);
-
-  // Check authentication
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem("token");
-      
-      if (!token) {
-        toast.error("Please login first");
-        router.push("/login");
-        return;
-      }
-
-      setIsAuthenticated(true);
-      fetchData();
-    }
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -115,7 +92,21 @@ export default function AdminUserListPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      toast.error("Please login first");
+      router.push("/login");
+      return;
+    }
+
+    void fetchData();
+  }, [router, fetchData]);
 
   const computeCredibilityLabel = (user: User) => {
     const reportsCount = user.reputation?.totalReports || 0;
@@ -184,7 +175,7 @@ export default function AdminUserListPage() {
       setSuspendReason("");
       setViewingUser(null);
       
-      fetchData();
+      void fetchData();
     } catch (err: any) {
       console.error("❌ Suspend error:", err);
       setError(err?.message || "Could not suspend user");
@@ -220,7 +211,7 @@ export default function AdminUserListPage() {
       setUsers((prev) => prev.map((u) => (u._id === userId ? { ...u, suspended: false, suspendedAt: undefined, suspensionReason: undefined } : u)));
       setViewingUser(null);
       
-      fetchData();
+      void fetchData();
     } catch (err: any) {
       console.error("❌ Unsuspend error:", err);
       toast.error(err?.message || "Failed to unsuspend user");
@@ -271,23 +262,6 @@ export default function AdminUserListPage() {
       toast.error("Failed to copy ID");
     });
   };
-
-  if (!isAuthenticated) {
-    return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-      }}>
-        <div style={{ textAlign: 'center', color: 'white' }}>
-          <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "48px", marginBottom: "16px" }}></i>
-          <p style={{ fontSize: "18px" }}>Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -357,7 +331,7 @@ export default function AdminUserListPage() {
                 <tbody className={styles.tbodyScrollable}>
                   {loading ? (
                     <tr><td colSpan={8} className={styles.emptyCell}>
-                      <i className="fa-solid fa-spinner fa-spin"></i> Loading users...
+                      <AdminLoader message="Loading users..." compact />
                     </td></tr>
                   ) : filteredAndSearchedUsers.length === 0 ? (
                     <tr><td colSpan={8} className={styles.emptyCell}>No users found.</td></tr>

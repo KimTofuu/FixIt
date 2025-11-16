@@ -9,6 +9,7 @@ import Link from "next/link";
 import { toast } from "react-toastify";
 import { useLoader } from "@/context/LoaderContext";
 import { useRouter, usePathname } from "next/navigation";
+import AdminLoader from "@/components/AdminLoader";
 
 interface ReportComment {
   _id?: string;
@@ -22,7 +23,7 @@ interface ReportComment {
   municipality?: string;
   profilePicture?: string;
   text: string;
-  createdAt?: string;
+  createdAt?: string | Date;
   editedAt?: string | Date | null;
 }
 
@@ -62,6 +63,7 @@ interface Report {
   helpfulVotes?: number;
   votedBy?: (string | any)[]; 
   comments?: ReportComment[];
+  createdAt?: string;
   flags?: Array<{ // Add this
     userId: string;
     reason: string;
@@ -138,7 +140,16 @@ const resolveIdString = (value: unknown): string | undefined => {
   return undefined;
 };
 
-const handleHelpfulVote = async (reportId: string, setReports: React.Dispatch<React.SetStateAction<Report[]>>) => {
+const handleHelpfulVote = async (
+  reportId: string,
+  setReports: React.Dispatch<React.SetStateAction<Report[]>>,
+  isOwnReport: boolean
+) => {
+  if (isOwnReport) {
+    toast.info("You can't upvote your own report.");
+    return;
+  }
+
   const token = localStorage.getItem("token");
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   
@@ -182,11 +193,45 @@ const handleHelpfulVote = async (reportId: string, setReports: React.Dispatch<Re
   }
 };
 
+const formatRelativeTime = (timestamp?: string | Date): string => {
+  if (!timestamp) {
+    return "";
+  }
+
+  const created = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (Number.isNaN(created.getTime())) {
+    return "";
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - created.getTime();
+  if (diffMs <= 0) {
+    return "Just now";
+  }
+
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) {
+    return "Just now";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+};
+
 export default function UserFeedPage() {
   const router = useRouter();
   const pathname = usePathname();
   const modalMapRef = useRef<HTMLDivElement>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [isReportSubmitting, setIsReportSubmitting] = useState(false);
   const [modalMarker, setModalMarker] = useState<any>(null);
   const [modalMap, setModalMap] = useState<any>(null);
   const [LRef, setLRef] = useState<any>(null);
@@ -210,6 +255,7 @@ export default function UserFeedPage() {
   const [previewIndex, setPreviewIndex] = useState(0);
 
   const [reports, setReports] = useState<Report[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -369,27 +415,42 @@ export default function UserFeedPage() {
 
   // Fetch reports
   useEffect(() => {
+    let active = true;
+
     const fetchReports = async () => {
+      setReportsLoading(true);
       try {
         const res = await fetch(`${API}/reports`);
-        if (res.ok) {
-          const data = await res.json();
-          console.log("✅ Reports loaded:", data);
-          console.log("📸 First report user pic:", data[0]?.user?.profilePicture?.url);
+        if (!res.ok) {
+          return;
+        }
 
-          // FILTER OUT reports still awaiting approval (any status containing "approval")
-          const visibleReports = (data || []).filter((r: any) => {
-            const status = (r?.status || "").toString();
-            return !/approval/i.test(status); // exclude statuses like "Awaiting Approval", "For Approval", etc.
-          });
+        const data = await res.json();
+        console.log("✅ Reports loaded:", data);
+        console.log("📸 First report user pic:", data[0]?.user?.profilePicture?.url);
 
+        const visibleReports = (data || []).filter((r: any) => {
+          const status = (r?.status || "").toString();
+          return !/approval/i.test(status);
+        });
+
+        if (active) {
           setReports(visibleReports);
         }
       } catch (err) {
         console.error("Failed to load reports", err);
+      } finally {
+        if (active) {
+          setReportsLoading(false);
+        }
       }
     };
-    fetchReports();
+
+    void fetchReports();
+
+    return () => {
+      active = false;
+    };
   }, [API]);
 
   // Dynamically import Leaflet only on client
@@ -724,7 +785,7 @@ export default function UserFeedPage() {
     return;
   }
 
-  showLoader();
+  setIsReportSubmitting(true);
 
   try {
     const formData = new FormData();
@@ -785,7 +846,7 @@ export default function UserFeedPage() {
     console.error("Submission error:", error);
     toast.error("An error occurred while submitting the report.");
   } finally {
-    hideLoader();
+    setIsReportSubmitting(false);
   }
 };
 
@@ -955,6 +1016,23 @@ export default function UserFeedPage() {
         ></script>
       </Head>
 
+      {isReportSubmitting && (
+        <div className={styles.fullscreenSpinner} role="status" aria-live="polite">
+          <div className={styles.modalSpinnerShell}>
+            <div className={styles.modalSpinnerRing}></div>
+            <Image
+              src="/images/Fix-it_logo_3.png"
+              alt="FixIt loading"
+              width={64}
+              height={64}
+              className={styles.modalSpinnerLogo}
+              priority
+            />
+          </div>
+          <p className={styles.modalSpinnerLabel}>Submitting report…</p>
+        </div>
+      )}
+
       <header className={styles.headerWrap}>
         <nav className={styles.nav}>
           <div className={styles.brand}>
@@ -1059,7 +1137,11 @@ export default function UserFeedPage() {
         </div>
           <section className={styles.feedMain}>
             <section id="reportList" className={styles.feedList}>
-              {filteredReports.length > 0 ? (
+                {reportsLoading ? (
+                  <div className={styles.loaderWrap}>
+                    <AdminLoader message="Loading reports..." />
+                  </div>
+                ) : filteredReports.length > 0 ? (
                 filteredReports.map((r) => {
                   const reportUserPic = r.user?.profilePicture?.url || defaultProfilePic;
                   
@@ -1072,26 +1154,29 @@ export default function UserFeedPage() {
                     return String(voterId);
                   });
                   
+                  const viewerId = currentUserId || currentUserEmail;
+                  
                   // Check if current user has voted
                   const hasVoted = Boolean(
-                    currentUserId && 
-                    normalizedVotedBy.some(voterId => voterId === String(currentUserId))
+                    viewerId && 
+                    normalizedVotedBy.some(voterId => voterId === String(viewerId))
                   );
                   
                   // Get report user ID safely and convert to string
-                  const reportUserId = r.user?._id ? String(r.user._id) : null;
-                  const isOwnReport = Boolean(currentUserId && reportUserId && String(reportUserId) === String(currentUserId));
-                  
-                  const isDisabled = hasVoted || isOwnReport;
+                  const reportUserId = r.user?._id ? String(r.user._id) : (r.user?.email ? r.user.email.toLowerCase() : null);
+                  const isOwnReport = Boolean(
+                    viewerId && reportUserId && String(reportUserId) === String(viewerId)
+                  );
+
+                  const createdTimeLabel = formatRelativeTime(r.createdAt);
                   
                   console.log('Vote Debug:', {
                     reportId: r._id,
-                    currentUserId: String(currentUserId),
+                    viewerId: viewerId ? String(viewerId) : null,
                     reportUserId,
                     normalizedVotedBy,
                     hasVoted,
-                    isOwnReport,
-                    isDisabled
+                    isOwnReport
                   });
                   
                   return (
@@ -1113,10 +1198,15 @@ export default function UserFeedPage() {
                                 (e.target as HTMLImageElement).src = defaultProfilePic;
                               }}
                             />
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                              <span className={styles.reportUser}>
-                                {r.user ? `${r.user.fName} ${r.user.lName}` : "Unknown User"}
-                              </span>
+                            <div className={styles.reportHeaderMain}>
+                              <div className={styles.reportUserMeta}>
+                                <span className={styles.reportUser}>
+                                  {r.user ? `${r.user.fName} ${r.user.lName}` : "Unknown User"}
+                                </span>
+                                {createdTimeLabel && (
+                                  <span className={styles.reportTime}>{createdTimeLabel}</span>
+                                )}
+                              </div>
                               {r.user?.reputation && (
                                 <div 
                                   className={styles.reputationBadge}
@@ -1168,12 +1258,8 @@ export default function UserFeedPage() {
                             return null;
                           }
                           const displayImages = allImages.slice(0, 4);
-                          const containerClass = totalImages <= 1
-                            ? `${styles.reportImageGallery} ${styles.singleImage}`
-                            : styles.reportImageGallery;
-
                           return (
-                            <div className={containerClass}>
+                            <div className={styles.reportImageGallery}>
                               {displayImages.map((imgSrc, idx) => {
                                 const isLastImage = idx === 3 && totalImages === 5;
 
@@ -1205,11 +1291,10 @@ export default function UserFeedPage() {
                           type="button"
                           className={`${styles.helpfulBtn} ${hasVoted ? styles.voted : ''} btn btnSecondary`}
                           onClick={() => {
-                            if (!isDisabled) {
-                              handleHelpfulVote(r._id, setReports);
-                            }
+                            if (hasVoted) return;
+                            handleHelpfulVote(r._id, setReports, isOwnReport);
                           }}
-                          disabled={isDisabled}
+                          disabled={hasVoted}
                           title={
                             isOwnReport 
                               ? "You can't vote your own report" 
@@ -1393,7 +1478,7 @@ export default function UserFeedPage() {
                     </article>
                   );
                 })
-              ) : (
+                ) : (
                 <p className={styles.noReports}>No reports found</p>
               )}
             </section>
@@ -1472,7 +1557,11 @@ export default function UserFeedPage() {
             </button>
             <h2 className={styles.modalTitle}>Add Report</h2>
 
-            <form className={styles.formGrid} onSubmit={handleReportSubmit}>
+            <form
+              className={styles.formGrid}
+              onSubmit={handleReportSubmit}
+              aria-busy={isReportSubmitting}
+            >
               <div className={styles.formLeft}>
                 <input
                   className={styles.input}
@@ -1658,7 +1747,13 @@ export default function UserFeedPage() {
                 </div>
                </div>
               <div className={styles.submitRow}>
-                <button type="submit" className={`${styles.submitBtn} btn btnPrimary`}>Submit Report</button>
+                <button
+                  type="submit"
+                  className={`${styles.submitBtn} btn btnPrimary`}
+                  disabled={isReportSubmitting}
+                >
+                  Submit Report
+                </button>
               </div>
             </form>
           </div>
