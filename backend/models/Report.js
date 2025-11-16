@@ -62,9 +62,17 @@ const reportSchema = new mongoose.Schema({
     default: []
   }],
   comments: [{
-    author: String,
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    user: String,
+    fName: String,
+    lName: String,
+    email: String,
+    barangay: String,
+    municipality: String,
+    profilePicture: String,
     text: String,
     createdAt: { type: Date, default: Date.now },
+    editedAt: { type: Date, default: null },
   }],
   createdAt: {
     type: Date,

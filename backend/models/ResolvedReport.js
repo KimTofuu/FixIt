@@ -54,9 +54,17 @@ const ResolvedReportSchema = new mongoose.Schema({
     required: true 
   },
   comments: [{
-    author: { type: String },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    user: { type: String },
+    fName: { type: String },
+    lName: { type: String },
+    email: { type: String },
+    barangay: { type: String },
+    municipality: { type: String },
+    profilePicture: { type: String },
     text: { type: String },
-    createdAt: { type: Date, default: Date.now }
+    createdAt: { type: Date, default: Date.now },
+    editedAt: { type: Date, default: null }
   }],
   resolvedAt: { 
     type: Date, 

@@ -40,6 +40,73 @@ interface ProfileData {
   };
 }
 
+const normalizeProfilePicture = (incoming: unknown): ProfileData["profilePicture"] => {
+  if (!incoming) {
+    return { url: "", public_id: "" };
+  }
+
+  if (typeof incoming === "string") {
+    return { url: incoming, public_id: "" };
+  }
+
+  if (typeof incoming === "object") {
+    const source = incoming as { url?: string; secure_url?: string; public_id?: string; publicId?: string };
+    const url = source.url || source.secure_url || "";
+    const publicId = source.public_id || source.publicId || "";
+    return { url, public_id: publicId };
+  }
+
+  return { url: "", public_id: "" };
+};
+
+const normalizeReputation = (incoming: any): NonNullable<ProfileData["reputation"]> => {
+  const fallback = {
+    points: 0,
+    level: "Newcomer",
+    badges: [] as Badge[],
+    totalReports: 0,
+    verifiedReports: 0,
+    resolvedReports: 0,
+    helpfulVotes: 0,
+  };
+
+  if (!incoming || typeof incoming !== "object") {
+    return fallback;
+  }
+
+  const safeBadges: Badge[] = Array.isArray(incoming.badges)
+    ? incoming.badges.map((badge: any) => ({
+        name: badge?.name || "Badge",
+        icon: badge?.icon || "🏅",
+        earnedAt: badge?.earnedAt || "",
+        _id: badge?._id || badge?.id,
+      }))
+    : [];
+
+  return {
+    points: Number(incoming.points ?? fallback.points),
+    level: incoming.level || fallback.level,
+    badges: safeBadges,
+    totalReports: Number(incoming.totalReports ?? fallback.totalReports),
+    verifiedReports: Number(incoming.verifiedReports ?? fallback.verifiedReports),
+    resolvedReports: Number(incoming.resolvedReports ?? fallback.resolvedReports),
+    helpfulVotes: Number(incoming.helpfulVotes ?? fallback.helpfulVotes),
+  };
+};
+
+const normalizeProfileData = (data: any): ProfileData => ({
+  _id: data?._id || data?.id || "",
+  fName: data?.fName || "",
+  lName: data?.lName || "",
+  email: data?.email || "",
+  barangay: data?.barangay || "",
+  municipality: data?.municipality || "",
+  contact: data?.contact || "",
+  contactVerified: Boolean(data?.contactVerified),
+  profilePicture: normalizeProfilePicture(data?.profilePicture),
+  reputation: normalizeReputation(data?.reputation),
+});
+
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -97,26 +164,7 @@ export default function ProfilePage() {
           return;
         }
         const data = await res.json();
-        setProfile({
-          _id: data._id || data.id,
-          fName: data.fName || "",
-          lName: data.lName || "",
-          email: data.email || "",
-          barangay: data.barangay || "",
-          municipality: data.municipality || "",
-          contact: data.contact || "",
-          contactVerified: data.contactVerified || false,
-          profilePicture: data.profilePicture || { url: "", public_id: "" },
-          reputation: data.reputation || {
-            points: 0,
-            level: 'Newcomer',
-            badges: [],
-            totalReports: 0,
-            verifiedReports: 0,
-            resolvedReports: 0,
-            helpfulVotes: 0,
-          },
-        });
+        setProfile(normalizeProfileData(data));
       } catch (err) {
         console.error("Error fetching profile:", err);
       }
@@ -163,7 +211,7 @@ export default function ProfilePage() {
         return;
       }
       const updated = await res.json();
-      setProfile(updated);
+      setProfile(normalizeProfileData(updated));
       setIsEditing(false);
       toast.success("Profile updated");
     } catch (err) {
@@ -218,7 +266,7 @@ export default function ProfilePage() {
       });
       if (profileRes.ok) {
         const updatedProfile = await profileRes.json();
-        setProfile(updatedProfile);
+        setProfile(normalizeProfileData(updatedProfile));
       }
     } catch (err) {
       console.error(err);
@@ -262,7 +310,7 @@ export default function ProfilePage() {
       });
       if (profileRes.ok) {
         const updatedProfile = await profileRes.json();
-        setProfile(updatedProfile);
+        setProfile(normalizeProfileData(updatedProfile));
       }
     } catch (err) {
       console.error(err);
@@ -395,7 +443,7 @@ export default function ProfilePage() {
 
       if (profileRes.ok) {
         const updatedProfile = await profileRes.json();
-        setProfile(updatedProfile);
+        setProfile(normalizeProfileData(updatedProfile));
       }
     } catch (err) {
       console.error(err);
@@ -554,7 +602,7 @@ export default function ProfilePage() {
           defer
         ></script>
       </Head>
-      <header className={styles.headerWrap}>
+      <header className={styles.overlayNav}>
         <nav className={styles.nav}>
           <div className={styles.brand}>
             <Image
@@ -572,10 +620,13 @@ export default function ProfilePage() {
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Toggle menu"
           >
-            <i className="fa-solid fa-bars"></i>
+            ☰
           </button>
 
-          <ul className={`${styles.navList} ${menuOpen ? styles.open : ""}`}>
+          <ul
+            className={`${styles.navList} ${menuOpen ? styles.open : ""}`}
+            onClick={() => setMenuOpen(false)}
+          >
             <li>
               <Link className={`${styles.navLink} ${pathname === '/user-map' ? styles.active : ''}`} href="/user-map">
                 Map
@@ -604,19 +655,14 @@ export default function ProfilePage() {
                     borderRadius: '8px',
                     objectFit: 'cover'
                   }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = defaultProfilePic;
+                  }}
                 />
               </Link>
             </li>
           </ul>
         </nav>
-
-        {menuOpen && (
-          <div className={styles.mobileMenu}>
-            <Link href="/user-map" className={styles.mobileLink}>Map</Link>
-            <Link href="/user-feed" className={styles.mobileLink}>Feed</Link>
-            <Link href="/user-myreports" className={styles.mobileLink}>My Reports</Link>
-          </div>
-        )}
       </header>
 
       <main className={styles.container}>
@@ -728,6 +774,7 @@ export default function ProfilePage() {
               <div className={styles.headerActions}>
                 {!isEditing && (
                   <button
+                    type="button"
                     onClick={() => setIsEditing(true)}
                     className={`btn btnSecondary ${styles.primary}`}
                   >
@@ -736,6 +783,7 @@ export default function ProfilePage() {
                 )}
                 {isEditing && (
                   <button
+                    type="button"
                     onClick={handleSave}
                     className={`btn btnPrimary ${styles.primaryDark}`}
                   >
