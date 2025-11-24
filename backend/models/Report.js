@@ -23,10 +23,19 @@ const reportSchema = new mongoose.Schema({
     required: true,
   },
   latitude: {
-    type: String,
+    type: Number,
+    required: false // Optional, but will be set if user uses geo-tagging
   },
   longitude: {
-    type: String,
+    type: Number,
+    required: false
+  },
+  geoTagged: {
+    type: Boolean,
+    default: false // Track if location was auto-detected
+  },
+  geoTaggedAt: {
+    type: Date // When the location was detected
   },
   images: [{ type: String }],
   image: { type: String },
