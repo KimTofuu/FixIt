@@ -43,4 +43,6 @@ router.patch('/:id', authenticateToken, upload.array('images', 5), reportControl
 router.post('/:reportId/flag', authenticateToken, reportController.flagReport);
 router.post('/:reportId/vote-helpful', authenticateToken, reputationController.voteHelpful); // Add this line
 
+router.post('/ai-image-recognition', authenticateToken, reportController.aiImageRecognition);
+
 module.exports = router;

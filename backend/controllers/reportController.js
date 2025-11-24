@@ -1103,7 +1103,6 @@ exports.getSummary = async (req, res) => {
         locations: [],
         categoryStats: {},
         locationStats: {},
-        modelUsed: "none",
         generatedAt: new Date().toISOString()
       });
     }
@@ -1264,7 +1263,6 @@ exports.getSummary = async (req, res) => {
       locations: locations.slice(0, 5),
       categoryStats,
       locationStats,
-      modelUsed: usedModel,
       generatedAt: new Date().toISOString()
     });
 
@@ -1273,6 +1271,133 @@ exports.getSummary = async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: "AI summary generation failed", 
+      error: error.message
+    });
+  }
+};
+
+exports.aiImageRecognition = async (req, res) => {
+  try {
+    console.log("🖼️ Starting AI Image Recognition with Bytez...");
+    
+    const { imageUrl } = req.body;
+    
+    if (!imageUrl) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Image URL is required" 
+      });
+    }
+
+    console.log("📸 Processing image:", imageUrl);
+
+    const apiKey = process.env.BYTEZ_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ 
+        success: false,
+        message: "Bytez API key not configured" 
+      });
+    }
+
+    // ✅ Try multiple vision models with correct input format
+    const visionModels = [
+      "Salesforce/blip-image-captioning-large",
+      "nlpconnect/vit-gpt2-image-captioning",
+      "microsoft/git-base"
+    ];
+
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    let result = null;
+
+    for (let i = 0; i < visionModels.length; i++) {
+      const modelName = visionModels[i];
+      
+      try {
+        console.log(`🔍 Trying vision model ${i + 1}/${visionModels.length}: ${modelName}`);
+        
+        if (i > 0) {
+          console.log(`⏱️ Waiting 2 seconds before next attempt...`);
+          await delay(2000);
+        }
+        
+        const model = bytezClient.model(modelName);
+        
+        // ✅ Pass the image URL directly as a string, not as an object
+        const response = await model.run(imageUrl);
+
+        console.log(`📦 Model ${modelName} response:`, response);
+
+        // Check for errors
+        if (response && typeof response === 'object' && response.error) {
+          console.log(`❌ Model ${modelName} error:`, response.error);
+          
+          if (response.error.includes('rate limit') || response.error.includes('concurrency')) {
+            console.log(`⏱️ Rate limit detected, waiting 5 seconds...`);
+            await delay(5000);
+          }
+          continue;
+        }
+
+        // Extract the description/caption from response
+        let description = null;
+        if (typeof response === 'string') {
+          description = response;
+        } else if (response && typeof response === 'object') {
+          description = response.text || 
+                       response.caption || 
+                       response.generated_text || 
+                       response[0]?.generated_text ||
+                       response.output ||
+                       response.summary_text;
+        }
+
+        if (description && description.trim().length > 0) {
+          // Filter out error messages
+          const descLower = description.toLowerCase();
+          if (descLower.includes('upgrade') || 
+              descLower.includes('unauthorized') || 
+              descLower.includes('rate limit') ||
+              descLower.includes('<!doctype')) {
+            console.log(`❌ Model ${modelName} returned error content`);
+            continue;
+          }
+
+          result = description.trim();
+          console.log(`✅ Successfully analyzed image with: ${modelName}`);
+          break;
+        }
+
+      } catch (modelError) {
+        console.log(`❌ Model ${modelName} failed:`, modelError.message);
+        
+        if (modelError.message.includes('rate limit')) {
+          await delay(5000);
+        }
+        continue;
+      }
+    }
+
+    if (!result) {
+      return res.status(500).json({ 
+        success: false,
+        message: "All vision models failed to analyze the image. This may be due to API rate limits or model availability."
+      });
+    }
+
+    // ✅ Return structured response
+    res.json({ 
+      success: true,
+      imageUrl,
+      description: result,
+      analyzedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("❌ AI Image Recognition failed:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "AI image recognition failed", 
       error: error.message
     });
   }

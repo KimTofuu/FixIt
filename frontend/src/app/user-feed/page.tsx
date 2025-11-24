@@ -701,43 +701,43 @@ export default function UserFeedPage() {
     }
   };
 
-  const ReportImage = ({ src, alt }: { src: string; alt: string }) => {
-    const [imgSrc, setImgSrc] = useState(() => {
-      if (!src) {
-        console.warn('No image source provided');
-        return "/images/broken-streetlights.jpg";
-      }
+  // const ReportImage = ({ src, alt }: { src: string; alt: string }) => {
+  //   const [imgSrc, setImgSrc] = useState(() => {
+  //     if (!src) {
+  //       console.warn('No image source provided');
+  //       return "/images/broken-streetlights.jpg";
+  //     }
 
-      if (src.includes('\\') || src.includes('AppData') || src.includes('C:') || src.includes('Temp')) {
-        console.error('❌ Invalid image path (local file detected):', src);
-        return "/images/broken-streetlights.jpg";
-      }
+  //     if (src.includes('\\') || src.includes('AppData') || src.includes('C:') || src.includes('Temp')) {
+  //       console.error('❌ Invalid image path (local file detected):', src);
+  //       return "/images/broken-streetlights.jpg";
+  //     }
 
-      if (src.startsWith('http://') || src.startsWith('https://')) {
-        console.log('✅ Valid image URL:', src);
-        return src;
-      }
+  //     if (src.startsWith('http://') || src.startsWith('https://')) {
+  //       console.log('✅ Valid image URL:', src);
+  //       return src;
+  //     }
 
-      console.warn('⚠️ Invalid image format:', src);
-      return "/images/broken-streetlights.jpg";
-    });
+  //     console.warn('⚠️ Invalid image format:', src);
+  //     return "/images/broken-streetlights.jpg";
+  //   });
 
-    return (
-      <Image
-        src={imgSrc}
-        alt={alt}
-        width={450}
-        height={250}
-        style={{ objectFit: 'cover', borderRadius: '8px' }}
-        onError={() => {
-          console.error('❌ Image failed to load:', imgSrc);
-          setImgSrc("/images/broken-streetlights.jpg");
-        }}
-        unoptimized={imgSrc === "/images/broken-streetlights.jpg"} // Only unoptimize fallback
-        priority={false}
-      />
-    );
-  };
+  //   return (
+  //     <Image
+  //       src={imgSrc}
+  //       alt={alt}
+  //       width={450}
+  //       height={250}
+  //       style={{ objectFit: 'cover', borderRadius: '8px' }}
+  //       onError={() => {
+  //         console.error('❌ Image failed to load:', imgSrc);
+  //         setImgSrc("/images/broken-streetlights.jpg");
+  //       }}
+  //       unoptimized={imgSrc === "/images/broken-streetlights.jpg"}
+  //       priority={false}
+  //     />
+  //   );
+  // };
 
   const handlePreviewNavigation = (direction: "next" | "prev") => {
     if (imagePreviews.length <= 1) return;
@@ -1000,6 +1000,93 @@ export default function UserFeedPage() {
     document.addEventListener('click', handleClickAway);
     return () => document.removeEventListener('click', handleClickAway);
   }, [openCommentMenu]);
+
+  // Add state for AI analysis
+  const [aiAnalysisModal, setAiAnalysisModal] = useState(false);
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<{
+    imageUrl: string;
+    description: string;
+    modelUsed: string;
+  } | null>(null);
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+
+  // Add function to analyze image
+  const handleAnalyzeImage = async (imageUrl: string) => {
+    setAiAnalyzing(true);
+    setAiAnalysisModal(true);
+    setAiAnalysisResult(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API}/reports/ai-image-recognition`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ imageUrl }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setAiAnalysisResult({
+          imageUrl: data.imageUrl,
+          description: data.description,
+          modelUsed: data.modelUsed,
+        });
+        toast.success("Image analyzed successfully!");
+      } else {
+        toast.error(data.message || "Failed to analyze image");
+        setAiAnalysisModal(false);
+      }
+    } catch (error) {
+      console.error("AI analysis error:", error);
+      toast.error("Failed to analyze image");
+      setAiAnalysisModal(false);
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
+  // ✅ Keep only ONE ReportImage component declaration (this one)
+  const ReportImage = ({ src, alt }: { src: string; alt: string }) => {
+    const [imgSrc, setImgSrc] = useState(() => {
+      if (!src) {
+        console.warn('No image source provided');
+        return "/images/broken-streetlights.jpg";
+      }
+
+      if (src.includes('\\') || src.includes('AppData') || src.includes('C:') || src.includes('Temp')) {
+        console.error('❌ Invalid image path (local file detected):', src);
+        return "/images/broken-streetlights.jpg";
+      }
+
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        console.log('✅ Valid image URL:', src);
+        return src;
+      }
+
+      console.warn('⚠️ Invalid image format:', src);
+      return "/images/broken-streetlights.jpg";
+    });
+
+    return (
+      <Image
+        src={imgSrc}
+        alt={alt}
+        width={450}
+        height={250}
+        style={{ objectFit: 'cover', borderRadius: '8px' }}
+        onError={() => {
+          console.error('❌ Image failed to load:', imgSrc);
+          setImgSrc("/images/broken-streetlights.jpg");
+        }}
+        unoptimized={imgSrc === "/images/broken-streetlights.jpg"}
+        priority={false}
+      />
+    );
+  };
 
   return (
     <>
@@ -1267,18 +1354,62 @@ export default function UserFeedPage() {
                                   <div
                                     key={idx}
                                     className={styles.reportImageItem}
-                                    onClick={() => openLightbox(allImages, idx)}
-                                    style={{ cursor: 'pointer' }}
+                                    style={{ position: 'relative' }}
                                   >
-                                    <ReportImage
-                                      src={imgSrc}
-                                      alt={`${r.title} - Image ${idx + 1}`}
-                                    />
-                                    {isLastImage && (
-                                      <div className={styles.imageOverlay}>
-                                        <span className={styles.overlayText}>+1</span>
-                                      </div>
-                                    )}
+                                    {/* ✅ Add AI Analysis Button */}
+                                    <button
+                                      className={styles.aiAnalyzeBtn}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAnalyzeImage(imgSrc);
+                                      }}
+                                      title="Analyze image with AI"
+                                      style={{
+                                        position: 'absolute',
+                                        top: '8px',
+                                        right: '8px',
+                                        background: 'rgba(59, 130, 246, 0.9)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        padding: '6px 12px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        zIndex: 10,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        backdropFilter: 'blur(4px)',
+                                        transition: 'all 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'rgba(37, 99, 235, 0.95)';
+                                        e.currentTarget.style.transform = 'scale(1.05)';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.9)';
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-robot"></i>
+                                      Analyze
+                                    </button>
+
+                                    <div
+                                      onClick={() => openLightbox(allImages, idx)}
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      <ReportImage
+                                        src={imgSrc}
+                                        alt={`${r.title} - Image ${idx + 1}`}
+                                      />
+                                      {isLastImage && (
+                                        <div className={styles.imageOverlay}>
+                                          <span className={styles.overlayText}>+1</span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -1941,6 +2072,63 @@ export default function UserFeedPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Analysis Modal */}
+      {aiAnalysisModal && (
+        <div className={styles.modal} role="dialog" aria-modal="true">
+          <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+            <button
+              className={styles.close}
+              onClick={() => setAiAnalysisModal(false)}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            <h2 className={styles.modalTitle}>
+              <i className="fa-solid fa-robot" style={{ marginRight: '10px', color: '#3b82f6' }}></i>
+              AI Image Analysis
+            </h2>
+
+            {aiAnalyzing ? (
+              <div className={styles.aiAnalyzing}>
+                <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                Analyzing image, please wait...
+              </div>
+            ) : aiAnalysisResult ? (
+              <div className={styles.aiAnalysisResult}>
+                <div className={styles.aiAnalysisImageWrapper}>
+                  <img
+                    src={aiAnalysisResult.imageUrl}
+                    alt="Analyzed image"
+                    className={styles.aiAnalysisImage}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg";
+                    }}
+                  />
+                </div>
+                <div className={styles.aiAnalysisDetails}>
+                  <p className={styles.aiAnalysisDescription}>
+                    <strong>Description:</strong> {aiAnalysisResult.description}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className={styles.aiAnalysisPrompt}>
+                Click on an image to analyze it with AI for automated description and tagging.
+              </p>
+            )}
+
+            <div className={styles.modalActions}>
+              <button
+                className={`${styles.submitBtn} btn btnPrimary`}
+                onClick={() => setAiAnalysisModal(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
