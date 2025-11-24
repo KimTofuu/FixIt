@@ -293,6 +293,10 @@ export default function UserFeedPage() {
   const [editingComment, setEditingComment] = useState<{ reportId: string; commentId: string } | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [pendingDeleteComment, setPendingDeleteComment] = useState<{ reportId: string; commentId: string; commentText?: string } | null>(null);
+  const [geolocating, setGeolocating] = useState(false);
+
+  // Add state to track if we've already fetched background location
+  const [backgroundLocationFetched, setBackgroundLocationFetched] = useState(false);
 
   const flagReasons = [
     "Spam or misleading information",
@@ -464,14 +468,143 @@ export default function UserFeedPage() {
     })();
   }, []);
 
-  // Initialize map when modal opens
+  // Add function to silently get location in background
+  const getBackgroundLocation = async () => {
+    if (!navigator.geolocation || backgroundLocationFetched) return;
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        console.log('📍 Background location captured:', { latitude, longitude });
+        
+        // Silently update form with GPS coordinates (don't change address or map)
+        setReportForm((prev) => ({
+          ...prev,
+          latitude: latitude.toFixed(6),
+          longitude: longitude.toFixed(6),
+        }));
+
+        // Update hidden inputs
+        const latInput = document.getElementById("latitude") as HTMLInputElement;
+        const lngInput = document.getElementById("longitude") as HTMLInputElement;
+        
+        if (latInput) latInput.value = latitude.toFixed(6);
+        if (lngInput) lngInput.value = longitude.toFixed(6);
+
+        setBackgroundLocationFetched(true);
+      },
+      (error) => {
+        console.log('📍 Background location not available:', error.message);
+        // Don't show error to user since this is silent background fetch
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000 // 5 minutes cache
+      }
+    );
+  };
+
+  const getCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setGeolocating(true);
+    toast.info("📍 Getting your precise location...");
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        
+        console.log('📍 Geo-tagged location:', { latitude, longitude, accuracy });
+        
+        try {
+          const address = await getAddressFromCoords(latitude, longitude);
+          
+          setReportForm((prev) => ({
+            ...prev,
+            address: address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+            latitude: latitude.toFixed(6),
+            longitude: longitude.toFixed(6),
+          }));
+
+          const addressInput = document.getElementById("address") as HTMLInputElement;
+          const latInput = document.getElementById("latitude") as HTMLInputElement;
+          const lngInput = document.getElementById("longitude") as HTMLInputElement;
+          
+          if (addressInput) addressInput.value = address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          if (latInput) latInput.value = latitude.toFixed(6);
+          if (lngInput) lngInput.value = longitude.toFixed(6);
+
+          if (modalMap && LRef) {
+            const L = LRef;
+            modalMap.setView([latitude, longitude], 16);
+            
+            if (modalMarker) {
+              modalMarker.remove();
+            }
+            
+            const customPin = L.icon({
+              iconUrl: "/images/pin.png",
+              iconSize: [32, 48],
+              iconAnchor: [16, 48],
+            });
+            const marker = L.marker([latitude, longitude], { icon: customPin }).addTo(modalMap);
+            setModalMarker(marker);
+          }
+
+          setBackgroundLocationFetched(true);
+          toast.success(`📍 Location detected! (±${Math.round(accuracy)}m accuracy)`);
+        } catch (error) {
+          console.error("Error getting address:", error);
+          toast.error("Could not get address for this location");
+        } finally {
+          setGeolocating(false);
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setGeolocating(false);
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error("📍 Location permission denied. Please enable location access.");
+            break;
+          case error.POSITION_UNAVAILABLE:
+            toast.error("📍 Location information unavailable.");
+            break;
+          case error.TIMEOUT:
+            toast.error("📍 Location request timed out.");
+            break;
+          default:
+            toast.error("📍 An error occurred while getting your location.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  // ✅ KEEP ONLY THIS ONE map initialization useEffect
   useEffect(() => {
     if (!modalVisible || !LRef) return;
+
+    // Automatically fetch user's GPS location in background when modal opens
+    setTimeout(() => {
+      getBackgroundLocation();
+    }, 500);
 
     setTimeout(() => {
       const mapContainer = document.getElementById("modal-map");
       if (!mapContainer) return;
 
+      // ✅ Clear any existing map instance
       if (mapContainer.innerHTML !== "") {
         mapContainer.innerHTML = "";
       }
@@ -482,6 +615,8 @@ export default function UserFeedPage() {
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
+
+      setModalMap(map);
 
       const customPin = L.icon({
         iconUrl: "/images/pin.png",
@@ -495,32 +630,42 @@ export default function UserFeedPage() {
       map.on("click", async (e: any) => {
         const { lat, lng } = e.latlng;
 
-        if (marker) {
-          marker.setLatLng([lat, lng]);
-        } else {
-          marker = L.marker([lat, lng], { icon: customPin }).addTo(map);
+        if (modalMarker) {
+          modalMarker.remove();
+          setModalMarker(null);
         }
+        if (marker) {
+          marker.remove();
+        }
+
+        marker = L.marker([lat, lng], { icon: customPin }).addTo(map);
+        setModalMarker(marker);
+
+        const address = await getAddressFromCoords(lat, lng);
+
+        setReportForm((prev) => ({
+          ...prev,
+          address: address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          latitude: lat.toFixed(6),
+          longitude: lng.toFixed(6),
+        }));
 
         const addressInput = document.getElementById("address") as HTMLInputElement;
         const latInput = document.getElementById("latitude") as HTMLInputElement;
         const lngInput = document.getElementById("longitude") as HTMLInputElement;
 
-        latInput.value = lat.toString();
-        lngInput.value = lng.toString();
-
-        const address = await getAddressFromCoords(lat, lng);
-        addressInput.value = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-
-        setReportForm((prev) => ({
-          ...prev,
-          address: addressInput.value,
-          latitude: lat.toString(),
-          longitude: lng.toString(),
-        }));
+        if (addressInput) addressInput.value = address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        if (latInput) latInput.value = lat.toFixed(6);
+        if (lngInput) lngInput.value = lng.toFixed(6);
       });
 
       setTimeout(() => map.invalidateSize(), 200);
     }, 100);
+
+    // Reset background location flag when modal closes
+    return () => {
+      setBackgroundLocationFetched(false);
+    };
   }, [modalVisible, LRef]);
 
   const getAddressFromCoords = async (lat: number, lng: number) => {
@@ -785,6 +930,20 @@ export default function UserFeedPage() {
     return;
   }
 
+  // ✅ Get final coordinates from state or hidden inputs
+  const latInput = document.getElementById("latitude") as HTMLInputElement;
+  const lngInput = document.getElementById("longitude") as HTMLInputElement;
+  
+  const finalLat = reportForm.latitude || latInput?.value || "";
+  const finalLng = reportForm.longitude || lngInput?.value || "";
+
+  console.log('📤 Submitting report:', {
+    address: reportForm.address,
+    latitude: finalLat,
+    longitude: finalLng,
+    hasCoordinates: !!(finalLat && finalLng)
+  });
+
   setIsReportSubmitting(true);
 
   try {
@@ -794,14 +953,14 @@ export default function UserFeedPage() {
     formData.append("category", reportForm.category);
     formData.append("isUrgent", String(reportForm.isUrgent));
     
-    // ✅ Append multiple images
     reportForm.images.forEach((image) => {
       formData.append("images", image);
     });
     
     formData.append("location", reportForm.address);
-    formData.append("latitude", reportForm.latitude);
-    formData.append("longitude", reportForm.longitude);
+    // ✅ Always send coordinates (even if empty)
+    formData.append("latitude", finalLat);
+    formData.append("longitude", finalLng);
 
     const token = localStorage.getItem("token");
 
@@ -814,20 +973,29 @@ export default function UserFeedPage() {
     });
 
     if (res.ok) {
-      toast.success("Report submitted successfully!");
+      const data = await res.json();
+      console.log('✅ Report created:', data.report);
+      
+      toast.success(
+        data.report?.geoTagged 
+          ? "📍 Report submitted with GPS location!" 
+          : "✅ Report submitted successfully!"
+      );
+      
       setModalVisible(false);
       setReportForm({
         title: "",
         description: "",
         category: "",
         isUrgent: false,
-        images: [], // ✅ Reset images array
+        images: [],
         address: "",
         latitude: "",
         longitude: "",
       });
-      setImagePreviews([]); // ✅ Clear previews
+      setImagePreviews([]);
       setPreviewIndex(0);
+      setBackgroundLocationFetched(false);
 
       const refreshRes = await fetch(`${API}/reports`);
       if (refreshRes.ok) {
@@ -1739,17 +1907,15 @@ export default function UserFeedPage() {
                     id="imageUpload"
                     name="images"
                     accept="image/*"
-                    multiple // ✅ Enable multiple file selection
+                    multiple
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
                       
-                      // ✅ Limit to 5 images
                       if (files.length > 5) {
                         toast.error("Maximum 5 images allowed");
                         return;
                       }
 
-                      // ✅ Check file sizes (5MB per image)
                       const invalidFiles = files.filter(file => file.size > 5 * 1024 * 1024);
                       if (invalidFiles.length > 0) {
                         toast.error("Each image must be less than 5MB");
@@ -1758,7 +1924,6 @@ export default function UserFeedPage() {
 
                       setReportForm({ ...reportForm, images: files });
 
-                      // ✅ Generate previews
                       const previews = files.map(file => {
                         return new Promise<string>((resolve) => {
                           const reader = new FileReader();
@@ -1776,7 +1941,6 @@ export default function UserFeedPage() {
                     }}
                   />
                   
-                  {/* ✅ Image Preview Carousel */}
                   <div className={`${styles.imagePreviewGrid} ${imagePreviews.length ? styles.hasImages : ""}`}>
                     {imagePreviews.length > 0 ? (
                       <div className={styles.previewFrame}>
@@ -1851,21 +2015,54 @@ export default function UserFeedPage() {
 
               <div className={styles.formRight}>
                 <label className={styles.inputLabel} htmlFor="address">Location</label>
-                <input
-                  className={styles.input}
-                  type="text"
-                  id="address"
-                  name="address"
-                  placeholder="Search or click on map"
-                  value={reportForm.address}
-                  onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })}
-                  required
-                />
+                
+                {/* ✅ Location Input with "Use My Location" Button */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <input
+                    className={styles.input}
+                    type="text"
+                    id="address"
+                    name="address"
+                    placeholder="Search or click on map"
+                    value={reportForm.address}
+                    onChange={(e) => setReportForm({ ...reportForm, address: e.target.value })}
+                    required
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className={`btn btnSecondary ${styles.geolocateBtn}`}
+                    onClick={getCurrentLocation}
+                    disabled={geolocating}
+                    title="Use my current location"
+                    style={{
+                      padding: '8px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      whiteSpace: 'nowrap',
+                      minWidth: 'fit-content'
+                    }}
+                  >
+                    {geolocating ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin"></i>
+                        <span>Locating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-location-crosshairs"></i>
+                        <span>Use My Location</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
                 <input type="hidden" id="latitude" name="latitude" />
                 <input type="hidden" id="longitude" name="longitude" />
 
                 <div id="modal-map" ref={modalMapRef} className={styles.modalMap}></div>
-             
+            
                 <div className={styles.urgentToggle}>
                   <input
                     type="checkbox"
@@ -1876,7 +2073,8 @@ export default function UserFeedPage() {
                   />
                   <label htmlFor="isUrgent">Mark as Urgent</label>
                 </div>
-               </div>
+              </div>
+
               <div className={styles.submitRow}>
                 <button
                   type="submit"
@@ -1966,6 +2164,7 @@ export default function UserFeedPage() {
                   Reason for flagging <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <select
+
                   id="flagReason"
                   className={styles.input}
                   value={flagForm.reason}

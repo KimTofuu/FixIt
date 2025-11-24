@@ -118,86 +118,113 @@ const uploadMultiple = upload.array('images', 5); // Max 5 images
 // Create a new report
 exports.createReport = async (req, res) => {
   try {
-    const { title, description, category, location, latitude, longitude, isUrgent } = req.body;
-    const userId = req.user?.userId;
+    const { 
+      title, 
+      description, 
+      category, 
+      location, 
+      latitude, 
+      longitude, 
+      isUrgent 
+    } = req.body;
 
+    // ✅ Fix: Get userId correctly from authenticated user
+    const userId = req.user?.userId || req.user?.id || req.userId;
+    
     if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // ✅ Handle multiple image uploads
-    let imageUrls = [];
-    if (req.files && req.files.length > 0) {
-      imageUrls = req.files.map(file => file.path);
-      
-      console.log('📸 Multiple images uploaded:', {
-        count: imageUrls.length,
-        urls: imageUrls
+      console.error('❌ User ID not found in request. req.user:', req.user);
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required. User ID not found.'
       });
     }
 
-    const isUrgentBool = isUrgent === 'true' || isUrgent === true;
-    const initialStatus = isUrgentBool ? 'pending' : 'awaiting-approval';
+    console.log('👤 Creating report for user:', userId);
 
-    const newReport = new Report({
-      title,
-      description,
-      images: imageUrls, // ✅ Store array of images
-      image: imageUrls[0] || null, // ✅ Keep first image for backward compatibility
+    // ✅ Parse coordinates
+    const parsedLat = latitude ? parseFloat(latitude) : null;
+    const parsedLng = longitude ? parseFloat(longitude) : null;
+
+    // ✅ Check if location was geo-tagged (has valid GPS coordinates)
+    const hasGPSCoords = parsedLat !== null && 
+                        parsedLng !== null && 
+                        !isNaN(parsedLat) && 
+                        !isNaN(parsedLng) &&
+                        parsedLat >= -90 && parsedLat <= 90 &&
+                        parsedLng >= -180 && parsedLng <= 180;
+
+    // ✅ Parse isUrgent value
+    const isUrgentValue = isUrgent === 'true' || isUrgent === true;
+
+    // ✅ Set status based on urgency
+    const reportStatus = isUrgentValue ? 'pending' : 'awaiting-approval';
+
+    console.log('📍 Location data:', {
       location,
-      latitude,
-      longitude,
-      category,
-      isUrgent: isUrgentBool,
-      status: initialStatus,
-      user: userId,
+      latitude: parsedLat,
+      longitude: parsedLng,
+      hasGPSCoords
     });
 
-    await newReport.save();
-    
-    console.log('✅ Report saved with images:', {
-      id: newReport._id,
-      imageCount: imageUrls.length,
-      images: newReport.images
+    console.log('🚨 Report urgency:', {
+      isUrgent: isUrgentValue,
+      status: reportStatus
     });
 
-    // Send email
-    try {
-      await sendEmailBrevo(
-        user.email,  // ✅ First parameter: email string
-        `Report Submitted: ${title}`,  // ✅ Second parameter: subject
-        `
-          <div style="font-family: Arial, sans-serif;">
-            <h2>Report Received! 🎉</h2>
-            <p>Hi ${user.fName},</p>
-            <p>Your report has been submitted successfully.</p>
-          </div>
-        `  // ✅ Third parameter: HTML content
+    // Handle multiple images
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+      const uploadPromises = req.files.map(file =>
+        cloudinary.uploader.upload(file.path, {
+          folder: 'fixitph-reports',
+          resource_type: 'image'
+        })
       );
-    } catch (emailError) {
-      console.error('❌ Email error:', emailError);
+
+      const uploadResults = await Promise.all(uploadPromises);
+      imageUrls = uploadResults.map(result => result.secure_url);
+
+      console.log(`✅ Uploaded ${imageUrls.length} images to Cloudinary`);
     }
 
-    // Award reputation points
-    user.reputation.points = (user.reputation.points || 0) + 10;
-    user.reputation.totalReports = (user.reputation.totalReports || 0) + 1;
-    await user.checkAndAwardBadges();
-    await user.save();
-
-    const populatedReport = await Report.findById(newReport._id).populate('user', 'fName lName email profilePicture');
-
-    res.status(201).json({ 
-      message: 'Report created successfully', 
-      report: populatedReport
+    const report = new Report({
+      user: userId,
+      title,
+      description,
+      category,
+      location,
+      latitude: parsedLat,
+      longitude: parsedLng,
+      geoTagged: hasGPSCoords,
+      geoTaggedAt: hasGPSCoords ? new Date() : null,
+      isUrgent: isUrgentValue,
+      images: imageUrls,
+      status: reportStatus, // ✅ Fixed: Use dynamic status based on urgency
     });
-  } catch (err) {
-    console.error('❌ Create report error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+
+    await report.save();
+
+    console.log('✅ Report created:', {
+      id: report._id,
+      user: userId,
+      geoTagged: report.geoTagged,
+      coordinates: report.geoTagged ? `${report.latitude}, ${report.longitude}` : 'Manual entry',
+      isUrgent: report.isUrgent,
+      status: report.status
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Report submitted successfully',
+      report
+    });
+  } catch (error) {
+    console.error('❌ Create report error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create report',
+      error: error.message
+    });
   }
 };
 
