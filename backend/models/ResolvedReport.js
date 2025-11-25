@@ -37,11 +37,11 @@ const ResolvedReportSchema = new mongoose.Schema({
     index: true 
   },
   latitude: { 
-    type: String, 
+    type: Number, 
     index: true 
   },
   longitude: { 
-    type: String, 
+    type: Number, 
     index: true 
   },
   isUrgent: {
@@ -66,6 +66,23 @@ const ResolvedReportSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     editedAt: { type: Date, default: null }
   }],
+  // ✅ Add new fields for resolution proof
+  originalImages: [{ 
+    type: String 
+  }], // Store original report images
+  resolutionDescription: { 
+    type: String,
+    required: true 
+  }, // How the issue was resolved
+  proofImages: [{ 
+    type: String,
+    required: true 
+  }], // Proof images showing resolved issue
+  resolvedBy: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User',
+    required: true 
+  }, // Admin who resolved it
   resolvedAt: { 
     type: Date, 
     default: Date.now 

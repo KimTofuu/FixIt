@@ -438,12 +438,71 @@ exports.getAllInProgressReports = async (req, res) => {
 // Get all resolved reports
 exports.getAllResolvedReports = async (req, res) => {
   try {
-    const reports = await Report.find({ status: 'resolved' })
-      .select('-__v')
-      .populate('user', 'fName lName email reputation');
-    res.json(reports);
-  } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.log('📋 Fetching all resolved reports...');
+
+    const resolvedReports = await ResolvedReport.find()
+      .populate('user', 'fName lName email profilePicture')
+      .populate('resolvedBy', 'fName lName email')
+      .sort({ resolvedAt: -1 });
+
+    console.log(`✅ Found ${resolvedReports.length} resolved reports`);
+
+    // ✅ Transform to match the frontend Report interface
+    const transformedReports = resolvedReports.map(report => {
+      // ✅ Get original images - check multiple fields for compatibility
+      const originalImages = report.originalImages && report.originalImages.length > 0
+        ? report.originalImages
+        : report.images && report.images.length > 0
+        ? report.images
+        : report.image
+        ? [report.image]
+        : [];
+
+      console.log(`Report ${report._id} images:`, {
+        originalImages: report.originalImages?.length || 0,
+        images: report.images?.length || 0,
+        image: report.image ? 1 : 0,
+        finalImages: originalImages.length
+      });
+
+      return {
+        _id: report._id,
+        title: report.title,
+        description: report.description,
+        category: report.category,
+        location: report.location,
+        latitude: report.latitude,
+        longitude: report.longitude,
+        status: 'resolved',
+        user: report.user,
+        isUrgent: report.isUrgent,
+        // ✅ Include ALL image fields for maximum compatibility
+        images: originalImages, // Main field used by frontend
+        originalImages: originalImages, // Backup field
+        image: report.image, // Legacy single image field
+        videos: report.videos,
+        comments: report.comments || [],
+        // ✅ Resolution proof fields
+        resolutionDescription: report.resolutionDescription,
+        proofImages: report.proofImages || [],
+        resolvedBy: report.resolvedBy,
+        resolvedAt: report.resolvedAt,
+        createdAt: report.createdAt,
+        originalReportId: report.originalReportId,
+        timestamp: report.resolvedAt || report.createdAt
+      };
+    });
+
+    console.log('✅ Sample transformed report:', transformedReports[0]);
+
+    res.json(transformedReports);
+  } catch (error) {
+    console.error('❌ Get resolved reports error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch resolved reports',
+      error: error.message
+    });
   }
 };
 
@@ -709,6 +768,44 @@ exports.updateReport = async (req, res) => {
   }
 };
 
+exports.getSummary = async (req, res) => {
+  try {
+    console.log('📊 Generating report summary...');
+
+    const [
+      totalReports,
+      pendingReports,
+      inProgressReports,
+      resolvedReports,
+      awaitingApproval
+    ] = await Promise.all([
+      Report.countDocuments(),
+      Report.countDocuments({ status: 'pending' }),
+      Report.countDocuments({ status: 'in-progress' }),
+      Report.countDocuments({ status: 'resolved' }),
+      Report.countDocuments({ status: 'awaiting-approval' })
+    ]);
+
+    const summary = {
+      total: totalReports,
+      awaitingApproval,
+      pending: pendingReports,
+      inProgress: inProgressReports,
+      resolved: resolvedReports
+    };
+
+    console.log('✅ Summary generated:', summary);
+    res.json(summary);
+  } catch (error) {
+    console.error('❌ Get summary error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate summary',
+      error: error.message
+    });
+  }
+};
+
 exports.getReportsForApproval = async (req, res) => {
   try {
     const reports = await Report.find({ status: 'awaiting-approval' })
@@ -815,30 +912,132 @@ exports.rejectReport = async (req, res) => {
   }
 };
 
-exports.getResolvedReports = async (req, res) => {
+// Add resolve report endpoint
+exports.resolveReport = async (req, res) => {
   try {
-    const resolvedReports = await ResolvedReport.find()
-      .populate('user', 'fName lName email profilePicture reputation')
-      .sort({ resolvedAt: -1 }); // Sort by resolved date, newest first
+    const { reportId } = req.params;
+    const { description } = req.body;
+
+    console.log('🔄 Resolving report:', reportId);
+
+    // Find the original report
+    const report = await Report.findById(reportId).populate('user', 'fName lName email');
     
-    console.log(`📊 Fetched ${resolvedReports.length} resolved reports from ResolvedReport collection`);
-    res.json(resolvedReports);
-  } catch (err) {
-    console.error('getResolvedReports error', err);
-    res.status(500).json({ message: 'Server error' });
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Report not found'
+      });
+    }
+
+    // ✅ Get original images from the report
+    const originalImages = report.images && report.images.length > 0
+      ? report.images
+      : report.image
+      ? [report.image]
+      : [];
+
+    console.log('📸 Original report images:', originalImages.length);
+
+    // ✅ Upload proof images to Cloudinary
+    let proofImageUrls = [];
+    if (req.files && req.files.length > 0) {
+      const uploadPromises = req.files.map(file =>
+        cloudinary.uploader.upload(file.path, {
+          folder: 'fixitph-resolved-proofs',
+          resource_type: 'image'
+        })
+      );
+
+      const uploadResults = await Promise.all(uploadPromises);
+      proofImageUrls = uploadResults.map(result => result.secure_url);
+
+      console.log(`✅ Uploaded ${proofImageUrls.length} proof images`);
+    }
+
+    // ✅ Create resolved report entry with BOTH original and proof images
+    const resolvedReport = new ResolvedReport({
+      originalReportId: report._id,
+      title: report.title,
+      description: report.description,
+      category: report.category,
+      location: report.location,
+      latitude: report.latitude,
+      longitude: report.longitude,
+      user: report.user,
+      // ✅ Store original images in multiple fields for compatibility
+      originalImages: originalImages,
+      images: originalImages, // Also store in 'images' field
+      image: report.image, // Keep legacy single image field
+      videos: report.videos,
+      comments: report.comments || [],
+      // ✅ Resolution data
+      resolutionDescription: description,
+      proofImages: proofImageUrls,
+      resolvedBy: req.user.userId || req.user.id,
+      resolvedAt: new Date(),
+      createdAt: report.createdAt,
+      isUrgent: report.isUrgent
+    });
+
+    await resolvedReport.save();
+
+    console.log('✅ Resolved report saved:', {
+      reportId: report._id,
+      resolvedReportId: resolvedReport._id,
+      originalImages: originalImages.length,
+      proofImages: proofImageUrls.length
+    });
+
+    // ✅ Update original report status
+    report.status = 'resolved';
+    report.resolvedAt = new Date();
+    await report.save();
+
+    res.json({
+      success: true,
+      message: 'Report resolved successfully',
+      resolvedReport: {
+        ...resolvedReport.toObject(),
+        images: originalImages, // Ensure images are included in response
+        originalImages: originalImages,
+        proofImages: proofImageUrls
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Resolve report error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resolve report',
+      error: error.message
+    });
   }
 };
 
-// Update the existing getAllResolvedReports to use the same logic
-exports.getAllResolvedReports = async (req, res) => {
+// Add these functions before the module.exports at the end of reportController.js
+
+// Get flagged reports
+exports.getFlaggedReports = async (req, res) => {
   try {
-    const resolvedReports = await ResolvedReport.find()
-      .populate('user', 'fName lName email profilePicture reputation')
-      .sort({ resolvedAt: -1 });
-    res.json(resolvedReports);
-  } catch (err) {
-    console.error('getAllResolvedReports error:', err);
-    res.status(500).json({ message: 'Server error' });
+    console.log('🚩 Fetching flagged reports...');
+    
+    const flaggedReports = await Report.find({ 
+      'flags.0': { $exists: true } // Reports that have at least one flag
+    })
+      .populate('user', 'fName lName email profilePicture')
+      .populate('flags.userId', 'fName lName email')
+      .sort({ 'flags.0.createdAt': -1 });
+
+    console.log(`✅ Found ${flaggedReports.length} flagged reports`);
+    res.json(flaggedReports);
+  } catch (error) {
+    console.error('❌ Get flagged reports error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch flagged reports',
+      error: error.message
+    });
   }
 };
 
@@ -847,221 +1046,114 @@ exports.flagReport = async (req, res) => {
   try {
     const { reportId } = req.params;
     const { reason, description } = req.body;
-    const userId = req.user?.userId;
+    const userId = req.user?.userId || req.user?.id;
 
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Flag reason is required'
+      });
     }
 
-    const report = await Report.findById(reportId).populate('user', 'fName lName email');
+    const report = await Report.findById(reportId);
     if (!report) {
-      return res.status(404).json({ message: 'Report not found' });
-    }
-    
-    // Check if user already flagged this report
-    if (report.flags && report.flags.some((flag) => flag.userId.toString() === userId)) {
-      return res.status(400).json({ message: 'You have already flagged this report' });
+      return res.status(404).json({
+        success: false,
+        message: 'Report not found'
+      });
     }
 
-    // Initialize flags array if it doesn't exist
+    // Check if user already flagged this report
+    const alreadyFlagged = report.flags?.some(
+      flag => flag.userId.toString() === userId.toString()
+    );
+
+    if (alreadyFlagged) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already flagged this report'
+      });
+    }
+
+    // Add flag
+    const newFlag = {
+      userId,
+      reason: reason.trim(),
+      description: description?.trim() || '',
+      createdAt: new Date()
+    };
+
     if (!report.flags) {
       report.flags = [];
     }
 
-    // Get the flagger's info
-    const flagger = await User.findById(userId).select('fName lName');
-
-    // Add the flag
-    report.flags.push({
-      userId,
-      reason,
-      description: description || '',
-      createdAt: new Date()
-    });
-
-    const previousFlagCount = report.flagCount || 0;
-    report.flagCount = report.flags.length;
-
+    report.flags.push(newFlag);
     await report.save();
 
-    console.log(`🚩 Report ${reportId} flagged by user ${userId}. Total flags: ${report.flagCount}`);
+    const populatedReport = await Report.findById(reportId)
+      .populate('user', 'fName lName email profilePicture')
+      .populate('flags.userId', 'fName lName email');
 
-    // Send email notification to the report author
-    if (report.user && report.user.email) {
-      try {
-        const isFirstFlag = previousFlagCount === 0;
-        const emailMessage = `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <h2 style="color: #ef4444;">⚠️ Your Report Has Been Flagged</h2>
-            <p>Hi ${report.user.fName},</p>
-            <p>Your report has received ${isFirstFlag ? 'a flag' : `${report.flagCount} flag(s)`} from ${isFirstFlag ? 'a community member' : 'community members'}.</p>
-            
-            <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 16px; margin: 20px 0; border-radius: 4px;">
-              <h3 style="margin-top: 0; color: #991b1b;">Report Details:</h3>
-              <ul style="margin: 10px 0;">
-                <li><strong>Report ID:</strong> ${report._id}</li>
-                <li><strong>Title:</strong> ${report.title}</li>
-                <li><strong>Total Flags:</strong> ${report.flagCount}</li>
-              </ul>
-            </div>
-
-            <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 4px;">
-              <h3 style="margin-top: 0; color: #92400e;">Latest Flag Reason:</h3>
-              <p><strong>${reason}</strong></p>
-              ${description ? `<p style="color: #78716c; font-style: italic;">"${description}"</p>` : ''}
-            </div>
-
-            ${report.flagCount >= 3 ? `
-              <div style="background-color: #fecaca; border: 2px solid #dc2626; padding: 16px; margin: 20px 0; border-radius: 4px;">
-                <p style="margin: 0; font-weight: bold; color: #991b1b;">
-                  ⚠️ <strong>Important:</strong> Your report has reached ${report.flagCount} flags and is under review by our moderation team. 
-                  If the flags are valid, your report may be removed.
-                </p>
-              </div>
-            ` : ''}
-
-            <h3 style="color: #1f2937;">What This Means:</h3>
-            <ul style="color: #4b5563;">
-              <li>Community members have raised concerns about your report</li>
-              <li>Our team will review the flags and your report content</li>
-              <li>Please ensure your report follows our <a href="https://fixitph.com/guidelines" style="color: #3b82f6;">community guidelines</a></li>
-              ${report.flagCount >= 3 ? '<li><strong>Multiple flags may result in report removal</strong></li>' : ''}
-            </ul>
-
-            <h3 style="color: #1f2937;">Common Reasons for Flags:</h3>
-            <ul style="color: #4b5563;">
-              <li>Spam or irrelevant content</li>
-              <li>Misleading or false information</li>
-              <li>Offensive or inappropriate content</li>
-              <li>Duplicate report</li>
-              <li>Violation of community guidelines</li>
-            </ul>
-
-            <p style="margin-top: 24px;">
-              If you believe this flag is unfair or made in error, you can contact our support team or wait for admin review.
-            </p>
-
-            <p style="color: #6b7280; font-size: 14px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
-              <strong>Note:</strong> This is an automated notification. Please do not reply to this email.
-            </p>
-
-            <div style="margin-top: 24px; padding: 16px; background-color: #f9fafb; border-radius: 4px;">
-              <p style="margin: 0; color: #6b7280; font-size: 14px;">
-                Thank you for being a part of our community. Together, we can keep FixItPH a helpful and respectful platform.
-              </p>
-            </div>
-          </div>
-        `;
-
-        await sendEmailBrevo(
-          report.user.email,
-          `⚠️ Your FixItPH Report Has Been Flagged (ID: ${report._id})`,
-          emailMessage,
-        );
-
-        console.log(`📧 Flag notification email sent to ${report.user.email}`);
-      } catch (emailError) {
-        console.error('❌ Failed to send flag notification email:', emailError);
-        // Don't fail the request if email fails
-      }
-    }
-
-    // If report has too many flags (e.g., 3+), notify admins
-    if (report.flagCount >= 3) {
-      console.log(`⚠️ Report ${reportId} has reached ${report.flagCount} flags. Consider review.`);
-      
-      // Send email to admins (you can add admin email notification here)
-      try {
-        const adminEmail = process.env.ADMIN_EMAIL || 'admin@fixitph.com';
-        const adminEmailMessage = `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-            <h2 style="color: #dc2626;">⚠️ Report Requires Immediate Review</h2>
-            <p>A report has reached <strong>${report.flagCount} flags</strong> and requires admin attention.</p>
-            
-            <div style="background-color: #fef2f2; padding: 16px; margin: 20px 0; border-radius: 4px;">
-              <h3>Report Details:</h3>
-              <ul>
-                <li><strong>Report ID:</strong> ${report._id}</li>
-                <li><strong>Title:</strong> ${report.title}</li>
-                <li><strong>Author:</strong> ${report.user.fName} ${report.user.lName} (${report.user.email})</li>
-                <li><strong>Total Flags:</strong> ${report.flagCount}</li>
-                <li><strong>Latest Flag Reason:</strong> ${reason}</li>
-              </ul>
-            </div>
-
-            <p>
-              <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin-flag" 
-                 style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                Review Report Now
-              </a>
-            </p>
-          </div>
-        `;
-
-        await sendEmailBrevo({
-          adminEmail,
-          subject: `⚠️ Urgent: Report ${report._id} Has ${report.flagCount} Flags`,
-          html: adminEmailMessage,
-        });
-
-        console.log(`📧 Admin notification email sent for report ${reportId}`);
-      } catch (adminEmailError) {
-        console.error('❌ Failed to send admin notification email:', adminEmailError);
-      }
-    }
-
-    res.json({
-      message: 'Report flagged successfully',
-      flagCount: report.flagCount
+    console.log('🚩 Report flagged:', {
+      reportId,
+      userId,
+      reason,
+      totalFlags: report.flags.length
     });
 
+    res.json({
+      success: true,
+      message: 'Report flagged successfully',
+      report: populatedReport
+    });
   } catch (error) {
-    console.error('Flag report error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Flag report error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to flag report',
+      error: error.message
+    });
   }
 };
 
-exports.getFlaggedReports = async (req, res) => {
-  try {
-    const flaggedReports = await Report.find({ 
-      flagCount: { $gt: 0 } 
-    })
-      .populate('user', 'fName lName email profilePicture')
-      .populate('flags.userId', 'fName lName email')
-      .sort({ flagCount: -1, createdAt: -1 });
-
-    console.log(`📊 Found ${flaggedReports.length} flagged reports`);
-    res.json(flaggedReports);
-  } catch (error) {
-    console.error('Get flagged reports error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Dismiss a report flag
+// Dismiss a single flag
 exports.dismissFlag = async (req, res) => {
   try {
-    const { reportId } = req.params;
-    const { flagUserId } = req.body;
+    const { reportId, userId } = req.params;
 
     const report = await Report.findById(reportId);
     if (!report) {
-      return res.status(404).json({ message: 'Report not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Report not found'
+      });
     }
 
-    // Remove the specific flag
+    // Remove flag from specific user
     report.flags = report.flags.filter(
-      (flag) => flag.userId.toString() !== flagUserId
+      flag => flag.userId.toString() !== userId.toString()
     );
-    report.flagCount = report.flags.length;
 
     await report.save();
 
-    console.log(`✅ Dismissed flag from user ${flagUserId} on report ${reportId}`);
-    res.json({ message: 'Flag dismissed successfully', flagCount: report.flagCount });
+    const populatedReport = await Report.findById(reportId)
+      .populate('user', 'fName lName email profilePicture')
+      .populate('flags.userId', 'fName lName email');
+
+    console.log('✅ Flag dismissed:', { reportId, userId });
+
+    res.json({
+      success: true,
+      message: 'Flag dismissed successfully',
+      report: populatedReport
+    });
   } catch (error) {
-    console.error('Dismiss flag error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('❌ Dismiss flag error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to dismiss flag',
+      error: error.message
+    });
   }
 };
 
@@ -1072,237 +1164,36 @@ exports.dismissAllFlags = async (req, res) => {
 
     const report = await Report.findById(reportId);
     if (!report) {
-      return res.status(404).json({ message: 'Report not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Report not found'
+      });
     }
 
     report.flags = [];
-    report.flagCount = 0;
-
     await report.save();
 
-    console.log(`✅ Dismissed all flags for report ${reportId}`);
-    res.json({ message: 'All flags dismissed successfully' });
-  } catch (error) {
-    console.error('Dismiss all flags error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+    const populatedReport = await Report.findById(reportId)
+      .populate('user', 'fName lName email profilePicture');
 
-exports.getSummary = async (req, res) => {
-  try {
-    console.log("🚀 Starting AI summary generation with Bytez...");
-    
-    const apiKey = process.env.BYTEZ_API_KEY;
-    console.log("🔑 Bytez API Key status:", apiKey ? `Key present (${apiKey.substring(0, 10)}...)` : "Key missing");
+    console.log('✅ All flags dismissed for report:', reportId);
 
-    if (!apiKey) {
-      return res.status(500).json({ message: "Bytez API key not configured" });
-    }
-
-    // 1. Fetch all active reports AND resolved reports from both collections
-    const [activeReports, resolvedReports] = await Promise.all([
-      Report.find({})
-        .select('title description category location createdAt status isUrgent')
-        .lean(),
-      ResolvedReport.find({})
-        .select('title description category location createdAt resolvedAt isUrgent')
-        .lean()
-    ]);
-
-    // Combine both arrays and mark resolved reports
-    const allReports = [
-      ...activeReports.map(r => ({ ...r, isResolved: false })),
-      ...resolvedReports.map(r => ({ ...r, status: 'resolved', isResolved: true }))
-    ];
-
-    console.log(`📊 Found ${activeReports.length} active reports and ${resolvedReports.length} resolved reports`);
-    console.log(`📊 Total reports to summarize: ${allReports.length}`);
-
-    if (allReports.length === 0) {
-      return res.json({ 
-        success: true,
-        aiSummary: "No reports available to summarize.",
-        reportCount: 0,
-        activeReportCount: 0,
-        resolvedReportCount: 0,
-        urgentCount: 0,
-        categories: [],
-        locations: [],
-        categoryStats: {},
-        locationStats: {},
-        generatedAt: new Date().toISOString()
-      });
-    }
-
-    // 2. Calculate statistics for frontend with simplified locations
-    const urgentCount = allReports.filter(r => r.isUrgent).length;
-    const categories = [...new Set(allReports.map(r => r.category).filter(Boolean))];
-    
-    // ✅ Extract only the first part of the location (before first comma)
-    const simplifiedLocations = allReports.map(r => {
-      if (!r.location) return null;
-      return r.location.split(',')[0].trim();
-    }).filter(Boolean);
-    
-    const locations = [...new Set(simplifiedLocations)];
-    
-    // Get category counts and status breakdown
-    const categoryStats = {};
-    const locationStats = {};
-    const statusBreakdown = {
-      'awaiting-approval': 0,
-      'pending': 0,
-      'in-progress': 0,
-      'resolved': 0
-    };
-    
-    allReports.forEach(report => {
-      if (report.category) {
-        categoryStats[report.category] = (categoryStats[report.category] || 0) + 1;
-      }
-      if (report.location) {
-        const simplifiedLocation = report.location.split(',')[0].trim();
-        locationStats[simplifiedLocation] = (locationStats[simplifiedLocation] || 0) + 1;
-      }
-      if (report.status) {
-        statusBreakdown[report.status] = (statusBreakdown[report.status] || 0) + 1;
-      }
-    });
-
-    // 3. Format the reports for AI with emphasis on both active and resolved
-    // Prioritize: urgent reports, recent reports, and resolved reports
-    const sortedReports = allReports
-      .sort((a, b) => {
-        // Prioritize urgent reports
-        if (a.isUrgent && !b.isUrgent) return -1;
-        if (!a.isUrgent && b.isUrgent) return 1;
-        // Then by date
-        const dateA = new Date(a.resolvedAt || a.createdAt || 0);
-        const dateB = new Date(b.resolvedAt || b.createdAt || 0);
-        return dateB - dateA;
-      })
-      .slice(0, 20); // Increased to 20 to include more reports
-
-    const reportsText = sortedReports
-      .map(r => {
-        const simplifiedLocation = r.location ? r.location.split(',')[0].trim() : 'unknown location';
-        const statusLabel = r.isResolved ? '[RESOLVED]' : `[${r.status?.toUpperCase() || 'ACTIVE'}]`;
-        const urgentLabel = r.isUrgent ? '[URGENT]' : '';
-        return `${urgentLabel}${statusLabel} ${r.category || 'Issue'} in ${simplifiedLocation}: ${(r.description || '').substring(0, 80)}...`;
-      })
-      .join('. ');
-
-    const prompt = `Summarize these community reports from FixItPH. Include both active and resolved issues. Highlight progress made on resolved reports: ${reportsText}. Focus on main issues, locations, and resolutions.`;
-
-    console.log("🤖 Sending request to Bytez AI...");
-    console.log(`📝 Prompt length: ${prompt.length} characters`);
-
-    // 4. ✅ Try models sequentially with delays
-    const modelQueue = [
-      "facebook/bart-large-cnn",
-      "t5-small",
-      "gpt2"
-    ];
-
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-    let aiSummary = null;
-    let usedModel = null;
-
-    for (let i = 0; i < modelQueue.length; i++) {
-      const modelName = modelQueue[i];
-      
-      try {
-        console.log(`🔍 Attempting model ${i + 1}/${modelQueue.length}: ${modelName}`);
-        
-        if (i > 0) {
-          console.log(`⏱️ Waiting 3 seconds before next attempt...`);
-          await delay(3000);
-        }
-        
-        const model = bytezClient.model(modelName);
-        const result = await model.run(prompt);
-
-        console.log(`📦 Model ${modelName} response type:`, typeof result);
-
-        if (result && typeof result === 'object' && result.error) {
-          console.log(`❌ Model ${modelName} error:`, result.error);
-          
-          if (result.error.includes('concurrency') || result.error.includes('rate limit')) {
-            console.log(`⏱️ Rate limit detected, waiting 5 seconds...`);
-            await delay(5000);
-            continue;
-          }
-          
-          continue;
-        }
-
-        if (typeof result === 'string') {
-          aiSummary = result;
-        } else if (result && typeof result === 'object') {
-          aiSummary = result.output || result.text || result.summary_text || result.generated_text || result.content;
-        }
-
-        if (aiSummary && aiSummary.trim().length > 0) {
-          const summaryLower = aiSummary.toLowerCase();
-          
-          if (summaryLower.includes('upgrade your account') ||
-              summaryLower.includes('unauthorized') ||
-              summaryLower.includes('rate limit') ||
-              summaryLower.includes('<!doctype')) {
-            console.log(`❌ Model ${modelName} returned error content`);
-            aiSummary = null;
-            continue;
-          }
-
-          usedModel = modelName;
-          console.log(`✅ Successfully generated summary with model: ${modelName}`);
-          break;
-        }
-
-      } catch (modelError) {
-        console.log(`❌ Model ${modelName} failed:`, modelError.message);
-        
-        if (modelError.message.includes('Unexpected token') || modelError.message.includes('JSON')) {
-          console.log(`⏱️ Detected HTML response, waiting 5 seconds before next attempt...`);
-          await delay(5000);
-        }
-      }
-    }
-
-    if (!aiSummary) {
-      return res.status(500).json({ 
-        success: false,
-        message: "All AI models failed to generate summary"
-      });
-    }
-
-    // 5. Return the AI summary and comprehensive stats
-    res.json({ 
+    res.json({
       success: true,
-      aiSummary: aiSummary.trim(),
-      reportCount: allReports.length,
-      activeReportCount: activeReports.length,
-      resolvedReportCount: resolvedReports.length,
-      urgentCount,
-      statusBreakdown,
-      categories: categories.slice(0, 5),
-      locations: locations.slice(0, 5),
-      categoryStats,
-      locationStats,
-      generatedAt: new Date().toISOString()
+      message: 'All flags dismissed successfully',
+      report: populatedReport
     });
-
   } catch (error) {
-    console.error("❌ AI Summary generation failed:", error);
-    res.status(500).json({ 
+    console.error('❌ Dismiss all flags error:', error);
+    res.status(500).json({
       success: false,
-      message: "AI summary generation failed", 
+      message: 'Failed to dismiss all flags',
       error: error.message
     });
   }
 };
 
+// AI Image Recognition
 exports.aiImageRecognition = async (req, res) => {
   try {
     console.log("🖼️ Starting AI Image Recognition with Bytez...");
@@ -1326,7 +1217,6 @@ exports.aiImageRecognition = async (req, res) => {
       });
     }
 
-    // ✅ Try multiple vision models with correct input format
     const visionModels = [
       "Salesforce/blip-image-captioning-large",
       "nlpconnect/vit-gpt2-image-captioning",
@@ -1336,6 +1226,7 @@ exports.aiImageRecognition = async (req, res) => {
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     let result = null;
+    let usedModel = null;
 
     for (let i = 0; i < visionModels.length; i++) {
       const modelName = visionModels[i];
@@ -1344,29 +1235,22 @@ exports.aiImageRecognition = async (req, res) => {
         console.log(`🔍 Trying vision model ${i + 1}/${visionModels.length}: ${modelName}`);
         
         if (i > 0) {
-          console.log(`⏱️ Waiting 2 seconds before next attempt...`);
           await delay(2000);
         }
         
         const model = bytezClient.model(modelName);
-        
-        // ✅ Pass the image URL directly as a string, not as an object
         const response = await model.run(imageUrl);
 
         console.log(`📦 Model ${modelName} response:`, response);
 
-        // Check for errors
         if (response && typeof response === 'object' && response.error) {
           console.log(`❌ Model ${modelName} error:`, response.error);
-          
           if (response.error.includes('rate limit') || response.error.includes('concurrency')) {
-            console.log(`⏱️ Rate limit detected, waiting 5 seconds...`);
             await delay(5000);
           }
           continue;
         }
 
-        // Extract the description/caption from response
         let description = null;
         if (typeof response === 'string') {
           description = response;
@@ -1380,24 +1264,22 @@ exports.aiImageRecognition = async (req, res) => {
         }
 
         if (description && description.trim().length > 0) {
-          // Filter out error messages
           const descLower = description.toLowerCase();
           if (descLower.includes('upgrade') || 
               descLower.includes('unauthorized') || 
               descLower.includes('rate limit') ||
               descLower.includes('<!doctype')) {
-            console.log(`❌ Model ${modelName} returned error content`);
             continue;
           }
 
           result = description.trim();
+          usedModel = modelName;
           console.log(`✅ Successfully analyzed image with: ${modelName}`);
           break;
         }
 
       } catch (modelError) {
         console.log(`❌ Model ${modelName} failed:`, modelError.message);
-        
         if (modelError.message.includes('rate limit')) {
           await delay(5000);
         }
@@ -1408,15 +1290,15 @@ exports.aiImageRecognition = async (req, res) => {
     if (!result) {
       return res.status(500).json({ 
         success: false,
-        message: "All vision models failed to analyze the image. This may be due to API rate limits or model availability."
+        message: "All vision models failed to analyze the image"
       });
     }
 
-    // ✅ Return structured response
     res.json({ 
       success: true,
       imageUrl,
       description: result,
+      modelUsed: usedModel,
       analyzedAt: new Date().toISOString()
     });
 
@@ -1428,4 +1310,35 @@ exports.aiImageRecognition = async (req, res) => {
       error: error.message
     });
   }
+};
+
+// Keep the module.exports as is - they now reference defined functions
+module.exports = {
+  createReport: exports.createReport,
+  updateReportStatus: exports.updateReportStatus,
+  verifyReport: exports.verifyReport,
+  getAllReports: exports.getAllReports,
+  getAllPendingReports: exports.getAllPendingReports,
+  getAllInProgressReports: exports.getAllInProgressReports,
+  getAllResolvedReports: exports.getAllResolvedReports,
+  getResolvedReports: exports.getResolvedReports,
+  getResolvedReportsCount: exports.getResolvedReportsCount,
+  getReport: exports.getReport,
+  getReportByUser: exports.getReportByUser,
+  getMyReports: exports.getMyReports,
+  addComment: exports.addComment,
+  updateComment: exports.updateComment,
+  deleteComment: exports.deleteComment,
+  deleteReport: exports.deleteReport,
+  updateReport: exports.updateReport,
+  getReportsForApproval: exports.getReportsForApproval,
+  approveReport: exports.approveReport,
+  rejectReport: exports.rejectReport,
+  resolveReport: exports.resolveReport,
+  getSummary: exports.getSummary, // ✅ Add this
+  getFlaggedReports: exports.getFlaggedReports, // ✅ Make sure this exists
+  flagReport: exports.flagReport, // ✅ Make sure this exists
+  dismissFlag: exports.dismissFlag, // ✅ Make sure this exists
+  dismissAllFlags: exports.dismissAllFlags, // ✅ Make sure this exists
+  aiImageRecognition: exports.aiImageRecognition // ✅ Make sure this exists
 };

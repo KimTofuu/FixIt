@@ -53,6 +53,14 @@ interface Report {
   originalReportId?: string;
   createdAt?: string;
   updatedAt?: string;
+  // ✅ Add resolution proof fields
+  resolutionDescription?: string;
+  proofImages?: string[];
+  resolvedBy?: {
+    fName?: string;
+    lName?: string;
+    email?: string;
+  };
 }
 
 type AdminStatusFilter = "awaiting-approval" | "pending" | "in-progress" | "resolved";
@@ -127,6 +135,16 @@ export default function AdminReportsPage() {
   const [editingComment, setEditingComment] = useState<{ reportId: string; commentId: string } | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
   const [pendingDeleteComment, setPendingDeleteComment] = useState<{ reportId: string; commentId: string; commentText?: string } | null>(null);
+
+  // Add state for resolution modal
+  const [resolveModalOpen, setResolveModalOpen] = useState(false);
+  const [reportToResolve, setReportToResolve] = useState<Report | null>(null);
+  const [resolutionData, setResolutionData] = useState({
+    description: "",
+    images: [] as File[],
+  });
+  const [resolutionImagePreviews, setResolutionImagePreviews] = useState<string[]>([]);
+  const [isSubmittingResolution, setIsSubmittingResolution] = useState(false);
 
   const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const verificationEmail = "johnnabunturan1029384756@gmail.com"; // fallback only
@@ -610,7 +628,6 @@ export default function AdminReportsPage() {
           'infrastructure': 'Infrastructure',
           'utilities': 'Utilities',
           'sanitation': 'Sanitation and Waste',
-          'waste': 'Sanitation and Waste',
           'environment': 'Environment and Public Spaces',
           'safety': 'Community and Safety',
           'community': 'Community and Safety',
@@ -680,6 +697,126 @@ export default function AdminReportsPage() {
     } catch (err) {
       console.error("Error sending to authority:", err);
       toast.error("An error occurred while sending the report.");
+    }
+  };
+
+  // Open resolution modal
+  const openResolveModal = (report: Report) => {
+    setReportToResolve(report);
+    setResolutionData({ description: "", images: [] });
+    setResolutionImagePreviews([]);
+    setResolveModalOpen(true);
+  };
+
+  // Close resolution modal
+  const closeResolveModal = () => {
+    setReportToResolve(null);
+    setResolutionData({ description: "", images: [] });
+    setResolutionImagePreviews([]);
+    setResolveModalOpen(false);
+  };
+
+  // Handle resolution image upload
+  const handleResolutionImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    
+    if (files.length > 5) {
+      toast.error("Maximum 5 images allowed");
+      return;
+    }
+
+    const invalidFiles = files.filter(file => file.size > 5 * 1024 * 1024);
+    if (invalidFiles.length > 0) {
+      toast.error("Each image must be less than 5MB");
+      return;
+    }
+
+    setResolutionData(prev => ({ ...prev, images: files }));
+
+    // Generate previews
+    const previews = files.map(file => {
+      return new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          resolve(event.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(previews).then(setResolutionImagePreviews);
+  };
+
+  // Remove resolution image preview
+  const removeResolutionImage = (index: number) => {
+    setResolutionData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+    setResolutionImagePreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Submit resolution
+  const submitResolution = async () => {
+    if (!reportToResolve) return;
+
+    if (!resolutionData.description.trim()) {
+      toast.error("Please provide a resolution description");
+      return;
+    }
+
+    if (resolutionData.images.length === 0) {
+      toast.error("Please upload at least one proof image");
+      return;
+    }
+
+    setIsSubmittingResolution(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      
+      formData.append("reportId", reportToResolve._id);
+      formData.append("description", resolutionData.description);
+      
+      resolutionData.images.forEach((image) => {
+        formData.append("proofImages", image);
+      });
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/reports/admin/reports/${reportToResolve._id}/resolve`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setReports((prev) => prev.filter((r) => r._id !== reportToResolve._id));
+        toast.success("Report resolved successfully!");
+        closeResolveModal();
+      } else {
+        const errorData = await res.json();
+        toast.error(errorData.message || "Failed to resolve report");
+      }
+    } catch (err) {
+      console.error("Error resolving report:", err);
+      toast.error("An error occurred while resolving the report");
+    } finally {
+      setIsSubmittingResolution(false);
+    }
+  };
+
+  // Update the status select to open modal when "resolved" is selected
+  const handleStatusChange = (reportId: string, newStatus: string, report: Report) => {
+    if (newStatus === "resolved") {
+      openResolveModal(report);
+    } else {
+      updateReportStatus(reportId, newStatus as AdminStatusFilter);
     }
   };
 
@@ -791,12 +928,7 @@ export default function AdminReportsPage() {
                             <label className={styles.statusLabel}>Status</label>
                             <select
                               value={activeStatus === 'resolved' ? 'resolved' : (r.status || 'pending')}
-                              onChange={(e) =>
-                                updateReportStatus(
-                                  r._id,
-                                  e.target.value as AdminStatusFilter
-                                )
-                              }
+                              onChange={(e) => handleStatusChange(r._id, e.target.value, r)}
                               className={styles.statusSelect}
                             >
                               <option value="pending">Pending</option>
@@ -820,6 +952,121 @@ export default function AdminReportsPage() {
 
                       <div className={styles.reportImage}>
                         {(() => {
+                          // ✅ For resolved reports, show both original images and proof images
+                          if (activeStatus === "resolved") {
+                            const originalImages = (r.images && r.images.length > 0)
+                              ? r.images
+                              : r.imageUrl
+                              ? [r.imageUrl]
+                              : r.image
+                              ? [r.image]
+                              : [];
+
+                            const proofImages = r.proofImages || [];
+
+                            return (
+                              <div className={styles.resolvedImagesContainer}>
+                                {/* Original Images */}
+                                {originalImages.length > 0 && (
+                                  <div className={styles.resolvedImageSection}>
+                                    <h5 className={styles.resolvedImageSectionTitle}>
+                                      <i className="fa-solid fa-image"></i> Original Report Images
+                                    </h5>
+                                    <div className={styles.reportImageGallery}>
+                                      {originalImages.slice(0, 4).map((img, idx) => (
+                                        <div
+                                          key={idx}
+                                          className={styles.reportImageItem}
+                                          onClick={() => openLightbox(originalImages, idx)}
+                                          style={{ position: 'relative', cursor: 'pointer' }}
+                                        >
+                                          <img
+                                            src={img}
+                                            alt={`Original Image ${idx + 1}`}
+                                            className={styles.inlineImage}
+                                            onError={(e) => {
+                                              (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg";
+                                            }}
+                                          />
+                                          {idx === 3 && originalImages.length > 4 && (
+                                            <div className={styles.imageOverlay}>
+                                              <span className={styles.overlayText}>+{originalImages.length - 3}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Resolution Proof Images */}
+                                {proofImages.length > 0 && (
+                                  <div className={styles.resolvedImageSection} style={{ marginTop: '16px' }}>
+                                    <h5 className={styles.resolvedImageSectionTitle}>
+                                      <i className="fa-solid fa-circle-check" style={{ color: '#10b981' }}></i> Resolution Proof
+                                    </h5>
+                                    <div className={styles.reportImageGallery}>
+                                      {proofImages.slice(0, 4).map((img, idx) => (
+                                        <div
+                                          key={idx}
+                                          className={styles.reportImageItem}
+                                          onClick={() => openLightbox(proofImages, idx)}
+                                          style={{ position: 'relative', cursor: 'pointer' }}
+                                        >
+                                          <img
+                                            src={img}
+                                            alt={`Proof Image ${idx + 1}`}
+                                            className={styles.inlineImage}
+                                            onError={(e) => {
+                                              (e.target as HTMLImageElement).src = "/images/broken-streetlights.jpg";
+                                            }}
+                                          />
+                                          {idx === 3 && proofImages.length > 4 && (
+                                            <div className={styles.imageOverlay}>
+                                              <span className={styles.overlayText}>+{proofImages.length - 3}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Resolution Description */}
+                                {r.resolutionDescription && (
+                                  <div className={styles.resolutionDescription} style={{ marginTop: '16px' }}>
+                                    <h5 className={styles.resolvedImageSectionTitle}>
+                                      <i className="fa-solid fa-clipboard-check"></i> Resolution Details
+                                    </h5>
+                                    <p style={{ 
+                                      fontSize: '0.95rem', 
+                                      lineHeight: '1.6',
+                                      color: '#334155',
+                                      background: '#f8fafc',
+                                      padding: '12px',
+                                      borderRadius: '6px',
+                                      borderLeft: '3px solid #10b981'
+                                    }}>
+                                      {r.resolutionDescription}
+                                    </p>
+                                    {r.resolvedBy && (
+                                      <p style={{ 
+                                        fontSize: '0.875rem', 
+                                        color: '#64748b',
+                                        marginTop: '8px',
+                                        fontStyle: 'italic'
+                                      }}>
+                                        Resolved by: {r.resolvedBy.fName} {r.resolvedBy.lName}
+                                        {r.resolvedAt && ` on ${new Date(r.resolvedAt).toLocaleString()}`}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // ✅ For non-resolved reports, show normal images
                           const allImages = (r.images && r.images.length > 0)
                             ? r.images
                             : r.imageUrl
@@ -1308,6 +1555,142 @@ export default function AdminReportsPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {resolveModalOpen && reportToResolve && (
+        <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-label="Resolve Report">
+          <div className={styles.modal} style={{ maxWidth: '600px' }}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>
+                <i className="fa-solid fa-circle-check" style={{ marginRight: '8px', color: '#10b981' }}></i>
+                Mark as Resolved
+              </h3>
+              <button className={styles.modalCloseBtn} onClick={closeResolveModal}>
+                <i className="fa-solid fa-times" />
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
+              <p className={styles.modalReportTitle}>{reportToResolve.title}</p>
+              
+              {/* Resolution Description */}
+              <div style={{ marginTop: '16px' }}>
+                <label className={styles.fieldLabel}>
+                  Resolution Description <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <textarea
+                  className={styles.textarea}
+                  placeholder="Describe how the issue was resolved..."
+                  value={resolutionData.description}
+                  onChange={(e) => setResolutionData(prev => ({ ...prev, description: e.target.value }))}
+                  rows={4}
+                  style={{ width: '100%', marginTop: '4px' }}
+                />
+              </div>
+
+              {/* Proof Images Upload */}
+              <div style={{ marginTop: '16px' }}>
+                <label className={styles.fieldLabel}>
+                  Proof Images (Max 5) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleResolutionImageChange}
+                  className={styles.fileInput}
+                  style={{ marginTop: '4px' }}
+                />
+              </div>
+
+              {/* Image Previews */}
+              {resolutionImagePreviews.length > 0 && (
+                <div style={{ 
+                  marginTop: '12px', 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', 
+                  gap: '8px' 
+                }}>
+                  {resolutionImagePreviews.map((preview, idx) => (
+                    <div key={idx} style={{ position: 'relative' }}>
+                      <img
+                        src={preview}
+                        alt={`Proof ${idx + 1}`}
+                        style={{
+                          width: '100%',
+                          height: '100px',
+                          objectFit: 'cover',
+                          borderRadius: '4px',
+                          border: '1px solid #e2e8f0'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeResolutionImage(idx)}
+                        style={{
+                          position: 'absolute',
+                          top: '4px',
+                          right: '4px',
+                          background: 'rgba(239, 68, 68, 0.9)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '24px',
+                          height: '24px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        aria-label="Remove image"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p style={{ 
+                marginTop: '12px', 
+                fontSize: '0.875rem', 
+                color: '#64748b',
+                fontStyle: 'italic' 
+              }}>
+                <i className="fa-solid fa-info-circle"></i> Please provide clear photos showing the resolved issue
+              </p>
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button 
+                className={`${styles.actionBtn} ${styles.cancelBtn}`} 
+                onClick={closeResolveModal}
+                disabled={isSubmittingResolution}
+              >
+                Cancel
+              </button>
+              <button
+                className={`${styles.actionBtn} ${styles.sendBtn}`}
+                onClick={submitResolution}
+                disabled={isSubmittingResolution}
+                style={{
+                  background: isSubmittingResolution ? '#94a3b8' : '#10b981',
+                  cursor: isSubmittingResolution ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {isSubmittingResolution ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin"></i> Resolving...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-circle-check"></i> Mark as Resolved
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

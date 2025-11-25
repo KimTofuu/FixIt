@@ -120,6 +120,10 @@ const reportSchema = new mongoose.Schema({
     forwardedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     forwardedAt: { type: Date, default: Date.now }
   }],
+  resolvedAt: {
+    type: Date,
+    default: null
+  }
 }, {
   timestamps: true
 });
