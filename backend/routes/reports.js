@@ -45,4 +45,12 @@ router.post('/:reportId/vote-helpful', authenticateToken, reputationController.v
 
 router.post('/ai-image-recognition', authenticateToken, reportController.aiImageRecognition);
 
+router.post(
+  '/admin/reports/:reportId/resolve',  // ✅ Fixed path
+  authenticateToken,
+  isAdmin,
+  upload.array('proofImages', 5),
+  reportController.resolveReport
+);
+
 module.exports = router;

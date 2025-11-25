@@ -901,3 +901,25 @@
 
 /* Smooth page transition */
 /* Removed page-entry animation to prevent twitching during navigation */
+
+.resolvedImagesContainer {
+  width: 100%;
+}
+
+.resolvedImageSection {
+  margin-bottom: 16px;
+}
+
+.resolvedImageSectionTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resolutionDescription {
+  margin-top: 16px;
+}
